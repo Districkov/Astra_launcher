@@ -27,7 +27,7 @@
   try {
     appWindow = getCurrentWindow();
   } catch (e) {
-    console.warn("getCurrentWindow not available:", e);
+    // window not available
     appWindow = null;
   }
 
@@ -90,80 +90,24 @@
   // #13 — Discord Rich Presence (флаг)
   let discordRpcActive = $state(false);
 
-  // Галерея (статика для всех)
-  let selectedImage = $state(0); // индекс выбранного фото
-  let slideshowActive = $state(false); // слайдшоу
-  let slideshowInterval = $state(null); // id таймера
 
-  function toggleSlideshow() {
-    if (slideshowActive) {
-      clearInterval(slideshowInterval);
-      slideshowActive = false;
-      slideshowInterval = null;
-    } else {
-      slideshowActive = true;
-      slideshowInterval = setInterval(() => {
-        selectedImage = (selectedImage + 1) % galleryImages.length;
-      }, 4000);
-    }
-  }
-
-  // Остановить слайдшоу при ручной навигации
-  function galleryNav(dir) {
-    playClickSound();
-    if (slideshowActive) {
-      clearInterval(slideshowInterval);
-      slideshowActive = false;
-      slideshowInterval = null;
-    }
-    if (dir === 'prev') {
-      selectedImage = (selectedImage - 1 + galleryImages.length) % galleryImages.length;
-    } else {
-      selectedImage = (selectedImage + 1) % galleryImages.length;
-    }
-  }
-
-  // Остановить слайдшоу при выходе из галереи
-  $effect(() => {
-    if (activeMenu !== 'gallery' && slideshowActive) {
-      clearInterval(slideshowInterval);
-      slideshowActive = false;
-      slideshowInterval = null;
-    }
-  });
-
-  // Статические изображения галереи (GTA 5 / FiveM тематика)
-  const galleryImages = [
-    { url: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1511512578047-dfb367046014?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1511512578047-dfb367046014?w=200&h=112&fit=crop", author: "Districk" },
-    { url: "https://images.unsplash.com/photo-1552820728-8b83bb6b2b28?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1552820728-8b83bb6b2b28?w=200&h=112&fit=crop", author: "Player1" },
-    { url: "https://images.unsplash.com/photo-1612287238675-3c0d4e5e9b3e?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1612287238675-3c0d4e5e9b3e?w=200&h=112&fit=crop", author: "Player2" },
-    { url: "https://images.unsplash.com/photo-1538481193979-526b401b6a26?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1538481193979-526b401b6a26?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1579373903781-fd5c0dd30991?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1579373903781-fd5c0dd30991?w=200&h=112&fit=crop", author: "Districk" },
-    { url: "https://images.unsplash.com/photo-1586182985937-87b36c87bc0e?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1586182985937-87b36c87bc0e?w=200&h=112&fit=crop", author: "Player3" },
-    { url: "https://images.unsplash.com/photo-1605379399622-0f696b4e83e8?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1605379399622-0f696b4e83e8?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1560419015-7c427e8ae5ba?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1560419015-7c427e8ae5ba?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=200&h=112&fit=crop", author: "Districk" },
-    { url: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&h=112&fit=crop", author: "Player4" },
-    { url: "https://images.unsplash.com/photo-1535223289827-42f1e9919769?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1535223289827-42f1e9919769?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1614294149010-950b698f72c0?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1614294149010-950b698f72c0?w=200&h=112&fit=crop", author: "Districk" },
-    { url: "https://images.unsplash.com/photo-1528870884180-5649b20f6435?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1528870884180-5649b20f6435?w=200&h=112&fit=crop", author: "Player5" },
-    { url: "https://images.unsplash.com/photo-1558324190-c940eb141401?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1558324190-c940eb141401?w=200&h=112&fit=crop", author: "ASTRA" },
-    { url: "https://images.unsplash.com/photo-1635205411883-ae35d1169f60?w=800&h=450&fit=crop", thumb: "https://images.unsplash.com/photo-1635205411883-ae35d1169f60?w=200&h=112&fit=crop", author: "Districk" },
-  ];
 
   // Производное: текст кнопки
-  let playLabel = $derived(launchPhase > 0 ? launchPhases[launchPhase - 1]?.label || "Запуск…" : isLaunching ? "Запуск…" : "Играть");
+  let playLabel = $derived(
+    precacheDownloading ? `Скачивание кеша ${precachePercent}%${precacheTotal ? ' (' + precacheDownloaded + '/' + precacheTotal + ')' : ''}` :
+    precacheExtracting ? `Распаковка кеша ${precachePercent}%` :
+    launchPhase > 0 ? launchPhases[launchPhase - 1]?.label || "Запуск…" :
+    isLaunching ? "Запуск…" : "Играть"
+  );
 
   // Пункты бокового меню (из imdex.tsx)
   const menuItems = [
-    { id: "play",       label: "Играть",      icon: "play",       active: true },
-    { id: "store",      label: "Магазин",     icon: "store",      active: false },
-    { id: "news",       label: "Новости",     icon: "news",       active: false },
-    { id: "forum",      label: "Форум",       icon: "forum",      active: false },
-    { id: "discord",    label: "Discord",      icon: "discord",    active: false },
-    { id: "gallery",   label: "Галерея",     icon: "gallery",   active: false },
-    { id: "settings",   label: "Настройки",   icon: "settings",   active: false },
+    { id: "play",       label: "Играть",      icon: "play",       active: true,  group: 1 },
+    { id: "store",      label: "Магазин",     icon: "store",      active: false, group: 1 },
+    { id: "news",       label: "Новости",     icon: "news",       active: false, group: 2 },
+    { id: "forum",      label: "Форум",       icon: "forum",      active: false, group: 2 },
+    { id: "discord",    label: "Discord",      icon: "discord",    active: false, group: 3 },
+    { id: "settings",   label: "Настройки",   icon: "settings",   active: false, group: 3 },
   ];
 
   // ── #11 Звуки ──────────────────────────────────
@@ -238,7 +182,7 @@
         addNotification(`🔄 Доступно обновление: v${info.latest_version}`, "update");
       }
     } catch (e) {
-      console.error("check_for_updates error:", e);
+      // update check failed
       updateChecked = true;
     }
   }
@@ -272,10 +216,8 @@
         largeText: "ASTRA Launcher"
       });
       discordRpcActive = ok;
-      console.log("[Discord RPC] Подключение:", ok ? "УСПЕХ" : "НЕ УДАЛОСЬ");
     } catch (e) {
       discordRpcActive = false;
-      console.error("[Discord RPC] Ошибка:", e);
     }
   }
 
@@ -315,8 +257,25 @@
         setTimeout(() => { statusMessage = ""; }, 2000);
       }
     } catch (e) {
-      console.error("Dialog error:", e);
+      // dialog error
     }
+  }
+
+  // ── Предзагрузка кеша ────────────────────────────
+  let precacheNeeded = $state(false);
+  let precacheDownloading = $state(false);
+  let precacheExtracting = $state(false);
+  let precachePercent = $state(0);
+  let precacheDownloaded = $state("");
+  let precacheTotal = $state("");
+
+  // Форматирование размера файла
+  function fmtSize(b) {
+    if (b === 0) return "0 Б";
+    const k = 1024;
+    const s = ["Б", "КБ", "МБ", "ГБ"];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    return (b / Math.pow(k, i)).toFixed(1) + " " + s[i];
   }
 
   // ── Запуск игры ─────────────────────────────────
@@ -327,25 +286,73 @@
     launchPhase = 1;
     launchProgress = 0;
 
-    // Этап 1: Проверка клиента (0-25%)
+    // Этап 1: Проверка клиента + предзагрузка кеша (0-50%)
     launchProgress = 5;
-    await sleep(400);
-    launchProgress = 15;
     await sleep(300);
-    launchProgress = 25;
 
-    // Этап 2: Подключение к серверу (25-60%)
+    // Проверяем нужна ли предзагрузка
+    try {
+      const check = await invoke("check_precache_needed");
+      precacheNeeded = check.needed;
+
+      if (check.needed) {
+        // Предзагрузка кеша — скачивание + распаковка
+        launchPhase = 3; // "Загрузка ресурсов"
+        precacheDownloading = true;
+        precachePercent = 0;
+
+        const unlisten = await listen("precache-progress", (event) => {
+          const { phase, downloaded, total, percent, extracted, total_files } = event.payload;
+
+          if (phase === "download") {
+            precacheDownloading = true;
+            precacheExtracting = false;
+            precachePercent = percent;
+            precacheDownloaded = fmtSize(downloaded);
+            precacheTotal = total > 0 ? fmtSize(total) : "";
+            // Прогресс: 5-40% (скачивание)
+            launchProgress = 5 + Math.round(percent * 0.35);
+          } else if (phase === "extract") {
+            precacheDownloading = false;
+            precacheExtracting = true;
+            precachePercent = percent;
+            // Прогресс: 40-50% (распаковка)
+            launchProgress = 40 + Math.round(percent * 0.1);
+          }
+        });
+
+        try {
+          await invoke("precache_server_files");
+          precacheNeeded = false;
+        } catch (error) {
+          // Предзагрузка не удалась — не критично, продолжаем
+          // precache failed
+          addNotification("⚠️ Предзагрузка не удалась: " + error, "error");
+        }
+
+        unlisten();
+        precacheDownloading = false;
+        precacheExtracting = false;
+      }
+
+      launchProgress = 50;
+    } catch (e) {
+      // cache check failed
+      launchProgress = 25;
+    }
+
+    // Этап 2: Подключение к серверу (50-70%)
     launchPhase = 2;
-    launchProgress = 30;
+    launchProgress = 55;
     try {
       const result = await invoke("launch_game");
-      launchProgress = 50;
-      await sleep(300);
-      launchProgress = 60;
+      launchProgress = 70;
     } catch (error) {
       launchPhase = 0;
       launchProgress = 0;
       isLaunching = false;
+      precacheDownloading = false;
+      precacheExtracting = false;
       if (error === "FIVEM_NOT_FOUND") {
         statusMessage = "FiveM не найден. Укажите путь в настройках.";
       } else {
@@ -355,25 +362,26 @@
       return;
     }
 
-    // Этап 3: Загрузка ресурсов (60-85%)
+    // Этап 3: Загрузка ресурсов (70-90%) — если кеш не предзагружен, FiveM скачает сам
     launchPhase = 3;
-    launchProgress = 65;
-    await sleep(500);
     launchProgress = 75;
     await sleep(400);
     launchProgress = 85;
+    await sleep(300);
 
-    // Этап 4: Запуск (85-100%)
+    // Этап 4: Запуск (90-100%)
     launchPhase = 4;
-    launchProgress = 90;
+    launchProgress = 95;
     await sleep(300);
     launchProgress = 100;
-    await sleep(400);
+    await sleep(300);
 
     // Готово
     launchPhase = 0;
     launchProgress = 0;
     isLaunching = false;
+    precacheDownloading = false;
+    precacheExtracting = false;
     statusMessage = "FiveM запущен ✓";
     setDiscordRpcPlaying();
     setTimeout(() => { statusMessage = ""; }, 3000);
@@ -442,7 +450,7 @@
       browserActive = true;
       activeMenu = "news";
     } catch (err) {
-      console.error("create_embedded_webview error:", err);
+      // webview error
       openUrl(url);
     }
   }
@@ -451,7 +459,7 @@
     try {
       await invoke("close_embedded_webview");
     } catch (err) {
-      console.error("close_embedded_webview error:", err);
+      // webview close error
     }
     browserActive = false;
   }
@@ -740,6 +748,9 @@
     <!-- Навигация -->
     <nav class="mt-[35px] flex-1">
       {#each menuItems as item, i}
+        {#if i > 0 && item.group !== menuItems[i - 1].group}
+          <div class="my-3"></div>
+        {/if}
         <button
           class="w-full flex items-center gap-3 pl-[34px] h-[42px] text-[15px] transition-colors duration-150 relative
             {activeMenu === item.id ? 'text-white' : 'text-white/30 hover:text-white/60'}"
@@ -758,8 +769,6 @@
             <svg class="w-4 h-4" viewBox="0 0 16 15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.74 4.67H10.96M4.74 7.73H9.41M5.52 11.56H3.18C2.56 11.56 1.97 11.31 1.53 10.88C1.1 10.45 0.85 9.87 0.85 9.26V3.14C0.85 2.54 1.1 1.95 1.53 1.52C1.97 1.09 2.56 0.85 3.18 0.85H12.52C13.14 0.85 13.73 1.09 14.17 1.52C14.6 1.95 14.85 2.54 14.85 3.14V9.26C14.85 9.87 14.6 10.45 14.17 10.88C14.73 11.31 13.14 11.56 12.52 11.56H10.18L7.85 13.85L5.52 11.56Z"/></svg>
           {:else if item.icon === 'discord'}
             <svg class="w-3.5 h-3" viewBox="0 0 14 11" fill="currentColor"><path d="M11.86 0.92C10.95 0.49 9.98 0.18 8.97 0C8.85 0.23 8.7 0.54 8.6 0.78C7.52 0.62 6.46 0.62 5.4 0.78C5.3 0.54 5.15 0.23 5.03 0C4.01 0.18 3.04 0.49 2.14 0.92C0.31 3.73 -0.19 6.46 0.06 9.16C1.27 10.08 2.45 10.63 3.6 11C3.89 10.6 4.14 10.18 4.36 9.73C3.94 9.57 3.54 9.37 3.17 9.14C3.27 9.07 3.36 8.99 3.46 8.91C5.76 10 8.27 10 10.54 8.91C10.64 8.99 10.74 9.07 10.83 9.14C10.46 9.37 10.05 9.57 9.64 9.73C9.86 10.18 10.11 10.6 10.4 11C11.55 10.63 12.73 10.08 13.94 9.16C14.23 6.03 13.44 3.32 11.86 0.92ZM4.67 7.5C3.98 7.5 3.42 6.84 3.42 6.05C3.42 5.25 3.97 4.59 4.67 4.59C5.38 4.59 5.95 5.25 5.93 6.05C5.93 6.84 5.38 7.5 4.67 7.5ZM9.33 7.5C8.63 7.5 8.07 6.84 8.07 6.05C8.07 5.25 8.62 4.59 9.33 4.59C10.03 4.59 10.6 5.25 10.58 6.05C10.58 6.84 10.03 7.5 9.33 7.5Z"/></svg>
-          {:else if item.icon === 'gallery'}
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
           {:else if item.icon === 'settings'}
             <svg class="w-3.5 h-3" viewBox="0 0 14 13" fill="currentColor"><path d="M12.66 4.59C11.4 4.59 10.88 3.7 11.51 2.62C11.87 2 11.66 1.2 11.02 0.84L9.81 0.16C9.26 -0.17 8.54 0.03 8.21 0.57L8.14 0.7C7.51 1.78 6.47 1.78 5.84 0.7L5.76 0.57C5.44 0.03 4.73 -0.17 4.18 0.16L2.97 0.84C2.33 1.2 2.11 2 2.48 2.63C3.11 3.7 2.6 4.59 1.33 4.59C0.6 4.59 0 5.17 0 5.89V7.11C0 7.82 0.59 8.41 1.33 8.41C2.6 8.41 3.11 9.3 2.48 10.38C2.11 11 2.33 11.8 2.97 12.16L4.18 12.84C4.73 13.17 5.44 12.97 5.77 12.43L5.85 12.3C6.48 11.22 7.51 11.22 8.15 12.3L8.23 12.43C8.56 12.97 9.27 13.17 9.82 12.84L11.03 12.16C11.67 11.8 11.89 11 11.52 10.38C10.89 9.3 11.4 8.41 12.67 8.41C13.4 8.41 14 7.83 14 7.11V5.89C14 5.18 13.4 4.59 12.66 4.59ZM7 8.74C5.74 8.74 4.72 7.73 4.72 6.5C4.72 5.27 5.74 4.26 7 4.26C8.25 4.26 9.27 5.27 9.27 6.5C9.27 7.73 8.25 8.74 7 8.74Z"/></svg>
           {/if}
@@ -935,11 +944,27 @@
           onmouseenter={playHoverSound}
           disabled={isLaunching}
         >
-          <div class="flex items-center justify-center gap-3 pl-6">
+          <!-- Прогресс-бар предзагрузки (фоновый) -->
+          {#if precacheDownloading || precacheExtracting}
+            <div class="absolute inset-0 bg-white/10 transition-all duration-300"
+                 style="width: {precachePercent}%"></div>
+          {/if}
+          <div class="flex items-center justify-center gap-3 pl-6 relative z-10">
             <!-- Стрелка иконка -->
-            <svg class="w-4 h-[17px]" viewBox="0 0 16 17" fill="white">
-              <polygon points="0,0 16,8.5 0,17" />
-            </svg>
+            {#if precacheDownloading}
+              <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+              </svg>
+            {:else if precacheExtracting}
+              <svg class="w-4 h-4 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
+            {:else}
+              <svg class="w-4 h-[17px]" viewBox="0 0 16 17" fill="white">
+                <polygon points="0,0 16,8.5 0,17" />
+              </svg>
+            {/if}
             <span class="text-white text-[22px] tracking-[-0.44px] whitespace-nowrap"
                   style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;">
               {playLabel}
@@ -995,124 +1020,6 @@
       {#if statusMessage}
         <p class="absolute bottom-20 left-1/2 -translate-x-1/2 text-sm text-gray-400 z-10">{statusMessage}</p>
       {/if}
-
-    {:else if activeMenu === "gallery"}
-      <!-- ═══════════════════════════════════════
-           СЕКЦИЯ: ГАЛЕРЕЯ — ASTRA STYLE
-           ═══════════════════════════════════════ -->
-      <div class="w-full h-full flex flex-col z-10">
-
-        <!-- ASTRA Header -->
-        <div class="relative px-8 pt-5 pb-3">
-          <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#f64a46] to-transparent"></div>
-          <div class="absolute top-0 left-0 w-16 h-[2px] bg-[#f64a46]"></div>
-          <div class="absolute top-0 left-0 w-[2px] h-8 bg-[#f64a46]/50"></div>
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 flex items-center justify-center bg-[#f64a46]/10 border border-[#f64a46]/20">
-              <svg class="w-5 h-5 text-[#f64a46]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter"><path d="M2 6H7L9 3H15L17 6H22V20H2V6ZM12 9V15M9 12H15M12 17C14.2 17 16 15.2 16 13C16 10.8 14.2 9 12 9C9.8 9 8 10.8 8 13C8 15.2 9.8 17 12 17Z"/></svg>
-            </div>
-            <div>
-              <h2 class="text-xl text-white" style="font-family: 'Armor Piercing 2.0 BB', sans-serif; letter-spacing: 1px;">ГАЛЕРЕЯ</h2>
-              <p class="text-[10px] text-white/20 tracking-widest uppercase">Gallery & Media</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Большое фото по центру -->
-        <div class="flex-1 px-8 flex items-center justify-center relative">
-          {#if galleryImages.length > 0}
-            <div class="w-full max-h-[340px] aspect-video relative overflow-hidden border border-white/5">
-              <!-- ASTRA corner accents -->
-              <div class="absolute top-0 left-0 w-6 h-[2px] bg-[#f64a46] z-10"></div>
-              <div class="absolute top-0 left-0 w-[2px] h-6 bg-[#f64a46]/50 z-10"></div>
-              <div class="absolute top-0 right-0 w-6 h-[2px] bg-[#f64a46]/30 z-10"></div>
-              <div class="absolute top-0 right-0 w-[2px] h-6 bg-[#f64a46]/20 z-10"></div>
-              <img
-                src={galleryImages[selectedImage].url}
-                alt={galleryImages[selectedImage].author}
-                class="w-full h-full object-cover transition-all duration-500"
-                key={selectedImage}
-              />
-              <!-- Автор -->
-              <div class="absolute bottom-0 left-0 right-0 px-4 py-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                <div class="flex items-center gap-2">
-                  <div class="w-1.5 h-1.5 bg-[#f64a46]/80"></div>
-                  <p class="text-xs text-white/60" style="font-family: 'Proxima Nova Semibold', sans-serif;">{galleryImages[selectedImage].author}</p>
-                  <span class="text-[10px] text-white/20 ml-2">{selectedImage + 1} / {galleryImages.length}</span>
-                </div>
-              </div>
-              <!-- Стрелки навигации + Слайдшоу -->
-              {#if galleryImages.length > 1}
-                <button
-                  class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/50 hover:bg-black/70 text-white/60 hover:text-white transition-all"
-                  onclick={() => galleryNav('prev')}
-                  onmouseenter={playHoverSound}
-                  aria-label="Предыдущее фото"
-                >
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-                </button>
-                <button
-                  class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/50 hover:bg-black/70 text-white/60 hover:text-white transition-all"
-                  onclick={() => galleryNav('next')}
-                  onmouseenter={playHoverSound}
-                  aria-label="Следующее фото"
-                >
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
-                <!-- Кнопка слайдшоу -->
-                <button
-                  class="absolute bottom-3 right-3 w-7 h-7 flex items-center justify-center bg-black/50 hover:bg-black/70 text-white/60 hover:text-[#f64a46] transition-all z-20"
-                  onclick={() => { playClickSound(); toggleSlideshow(); }}
-                  onmouseenter={playHoverSound}
-                  aria-label={slideshowActive ? 'Остановить слайдшоу' : 'Слайдшоу'}
-                >
-                  {#if slideshowActive}
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                  {:else}
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-                  {/if}
-                </button>
-                <!-- Индикатор слайдшоу -->
-                {#if slideshowActive}
-                  <div class="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 px-2 py-1 z-20">
-                    <div class="w-1.5 h-1.5 bg-[#f64a46] animate-pulse"></div>
-                    <span class="text-[9px] text-white/50 uppercase tracking-wider">Live</span>
-                  </div>
-                {/if}
-              {/if}
-            </div>
-          {:else}
-            <div class="flex flex-col items-center justify-center h-52 relative">
-              <div class="absolute w-20 h-20 border border-white/5 rotate-45"></div>
-              <svg class="w-14 h-14 mb-4 text-white/10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M2 6H7L9 3H15L17 6H22V20H2V6ZM12 9V15M9 12H15M12 17C14.2 17 16 15.2 16 13C16 10.8 14.2 9 12 9C9.8 9 8 10.8 8 13C8 15.2 9.8 17 12 17Z"/></svg>
-              <p class="text-sm text-white/30" style="font-family: 'Proxima Nova Bold', sans-serif;">Галерея пуста</p>
-              <div class="absolute bottom-8 w-1.5 h-1.5 bg-[#f64a46]/40"></div>
-            </div>
-          {/if}
-        </div>
-
-        <!-- Полоса превью снизу -->
-        {#if galleryImages.length > 1}
-          <div class="px-8 py-3">
-            <div class="flex gap-2 overflow-x-auto pb-1" style="scrollbar-width: thin; scrollbar-color: rgba(246,74,70,0.3) transparent;">
-              {#each galleryImages as img, i}
-                <button
-                  class="flex-shrink-0 w-[120px] aspect-video overflow-hidden border transition-all duration-200 {selectedImage === i ? 'border-[#f64a46] ring-1 ring-[#f64a46]/30' : 'border-white/5 hover:border-white/20'}"
-                  onclick={() => { playClickSound(); selectedImage = i; }}
-                  onmouseenter={playHoverSound}
-                >
-                  <img
-                    src={img.thumb}
-                    alt={img.author}
-                    class="w-full h-full object-cover {selectedImage === i ? 'opacity-100' : 'opacity-50 hover:opacity-80'} transition-opacity duration-200"
-                    loading="lazy"
-                  />
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
 
     {:else}
       <!-- ═══════════════════════════════════════
