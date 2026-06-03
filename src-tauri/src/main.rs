@@ -409,7 +409,189 @@ async fn get_server_status() -> Result<serde_json::Value, String> {
 }
 
 /// ─────────────────────────────────────────────
-/// 🖥️ УПРАВЛЕНИЕ ОКНАМИ
+/// � ПРЕДЗАГРУЗКА КЕША СЕРВЕРА
+/// ─────────────────────────────────────────────
+
+/// URL для скачивания кеша сервера (ZIP-архив)
+/// Замените на реальный URL вашего сервера
+const PRECACHE_URL: &str = "http://185.176.94.21/precache.zip";
+
+/// Путь к кешу FiveM: %LocalAppData%\FiveM\FiveM.app\data\server-cache-priv\
+fn fivem_server_cache_dir() -> Option<PathBuf> {
+    let local_appdata = std::env::var("LOCALAPPDATA").ok()?;
+    Some(PathBuf::from(local_appdata)
+        .join("FiveM")
+        .join("FiveM.app")
+        .join("data")
+        .join("server-cache-priv"))
+}
+
+/// Проверяет, нужна ли предзагрузка (кеш пуст или почти пуст)
+#[command]
+fn check_precache_needed() -> Result<serde_json::Value, String> {
+    let cache_dir = fivem_server_cache_dir()
+        .ok_or("Не удалось найти папку кеша FiveM")?;
+
+    if !cache_dir.exists() {
+        return Ok(serde_json::json!({
+            "needed": true,
+            "reason": "Кеш FiveM не найден (первый запуск)"
+        }));
+    }
+
+    // Считаем cache_* файлы
+    let cache_files: Vec<_> = fs::read_dir(&cache_dir)
+        .map_err(|e| format!("Ошибка чтения кеша: {}", e))?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("cache_")
+        })
+        .collect();
+
+    let count = cache_files.len();
+    let total_size: u64 = cache_files
+        .iter()
+        .filter_map(|f| f.metadata().ok())
+        .map(|m| m.len())
+        .sum();
+
+    // Если кеш < 50 МБ или < 100 файлов — нужна предзагрузка
+    let needed = count < 100 || total_size < 50_000_000;
+
+    Ok(serde_json::json!({
+        "needed": needed,
+        "reason": if needed { "Кеш сервера пуст или неполный" } else { "Кеш сервера актуален" },
+        "cache_files": count,
+        "cache_size_mb": (total_size as f64 / 1_048_576.0).round()
+    }))
+}
+
+/// Скачивает и распаковывает кеш сервера с прогрессом
+#[command]
+async fn precache_server_files(window: tauri::Window) -> Result<serde_json::Value, String> {
+    let cache_dir = fivem_server_cache_dir()
+        .ok_or("Не удалось найти папку кеша FiveM")?;
+
+    // Создаём папку если нет
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Ошибка создания папки кеша: {}", e))?;
+
+    // Путь для временного ZIP
+    let zip_path = launcher_data_dir().join("precache.zip");
+
+    // Скачиваем ZIP с прогрессом
+    let client = reqwest::Client::new();
+    let response = client
+        .get(PRECACHE_URL)
+        .timeout(std::time::Duration::from_secs(300)) // 5 мин на скачивание
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка подключения к серверу: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Сервер вернул статус {} (возможно precache.zip ещё не создан)", response.status()));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let mut file = fs::File::create(&zip_path)
+        .map_err(|e| format!("Ошибка создания файла: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+    use futures_util::StreamExt;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Ошибка чтения: {}", e))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("Ошибка записи: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        let percent = if total_size > 0 {
+            (downloaded as f64 / total_size as f64 * 100.0) as u32
+        } else {
+            0
+        };
+
+        let payload = serde_json::json!({
+            "phase": "download",
+            "downloaded": downloaded,
+            "total": total_size,
+            "percent": percent
+        });
+        let _ = window.emit("precache-progress", &payload);
+    }
+
+    drop(file); // Закрываем файл перед распаковкой
+
+    // Распаковываем ZIP
+    let payload = serde_json::json!({
+        "phase": "extract",
+        "percent": 0
+    });
+    let _ = window.emit("precache-progress", &payload);
+
+    let zip_file = fs::File::open(&zip_path)
+        .map_err(|e| format!("Ошибка открытия ZIP: {}", e))?;
+
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .map_err(|e| format!("Ошибка чтения ZIP: {}", e))?;
+
+    let total_files = archive.len();
+    let mut extracted = 0;
+
+    for i in 0..total_files {
+        let mut zip_file = archive.by_index(i)
+            .map_err(|e| format!("Ошибка чтения файла из ZIP: {}", e))?;
+
+        let outpath = match zip_file.enclosed_name() {
+            Some(path) => cache_dir.join(path),
+            None => continue,
+        };
+
+        // Создаём родительские папки
+        if let Some(parent) = outpath.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Ошибка создания папки: {}", e))?;
+        }
+
+        // Пропускаем папки (созданы выше)
+        if zip_file.is_dir() {
+            continue;
+        }
+
+        // Копируем файл
+        let mut outfile = fs::File::create(&outpath)
+            .map_err(|e| format!("Ошибка создания файла: {}", e))?;
+        std::io::copy(&mut zip_file, &mut outfile)
+            .map_err(|e| format!("Ошибка записи файла: {}", e))?;
+
+        extracted += 1;
+        let percent = (extracted as f64 / total_files as f64 * 100.0) as u32;
+
+        let payload = serde_json::json!({
+            "phase": "extract",
+            "percent": percent,
+            "extracted": extracted,
+            "total_files": total_files
+        });
+        let _ = window.emit("precache-progress", &payload);
+    }
+
+    // Удаляем временный ZIP
+    let _ = fs::remove_file(&zip_path);
+
+    Ok(serde_json::json!({
+        "success": true,
+        "extracted_files": extracted,
+        "cache_dir": cache_dir.to_string_lossy().to_string()
+    }))
+}
+
+/// ─────────────────────────────────────────────
+/// �🖥️ УПРАВЛЕНИЕ ОКНАМИ
 /// ─────────────────────────────────────────────
 
 #[command]
@@ -782,12 +964,10 @@ fn set_discord_rpc(state: String, details: String, large_text: String) -> Result
 
         match client.connect() {
             Ok(_) => {
-                eprintln!("[Discord RPC] ✅ Подключено к Discord (App ID: {})", DISCORD_APP_ID);
                 *rpc = Some(client);
             }
             Err(e) => {
-                eprintln!("[Discord RPC] ❌ Не удалось подключиться: {:?}", e);
-                eprintln!("[Discord RPC] Убедитесь что Discord запущен на ПК");
+                let _ = e;
                 return Ok(false);
             }
         }
@@ -897,6 +1077,9 @@ fn main() {
             save_username,
             // Пинг сервера
             get_server_ping,
+            // Предзагрузка кеша сервера
+            check_precache_needed,
+            precache_server_files,
             // Галерея (загрузка на catbox.moe)
             upload_to_gallery,
             // Трей
