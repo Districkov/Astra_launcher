@@ -1,0 +1,32 @@
+[package]
+name = "astra-launcher"
+version = "1.0.0"
+description = "ASTRA — лаунчер для FiveM-сервера"
+authors = ["ASTRA Team"]
+license = "MIT"
+repository = ""
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [ "devtools", "unstable", "tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+url = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+open = "5"
+reqwest = { version = "0.12", features = ["stream", "json", "multipart"] }
+futures-util = "0.3"
+dirs = "5"
+tokio = { version = "1", features = ["full"] }
+discord-rich-presence = "0.2"
+once_cell = "1"
+chrono = "0.4"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

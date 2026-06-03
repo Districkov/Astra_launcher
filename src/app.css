@@ -1,0 +1,152 @@
+/* Tailwind CSS — глобальные стили */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Убираем отступы и скроллбар для лаунчера */
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0d0d0d;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* Кастомный скроллбар */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1b1b1b;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+/* Шрифт Armor Piercing (для логотипа ASTRA) */
+@font-face {
+  font-family: 'Armor Piercing 2.0 BB';
+  src: local('Armor Piercing 2.0 BB');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Proxima Nova fallback */
+@font-face {
+  font-family: 'Proxima Nova Bold';
+  src: local('Proxima Nova Bold'), local('ProximaNova-Bold');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Proxima Nova Semibold';
+  src: local('Proxima Nova Semibold'), local('ProximaNova-Semibold');
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* #7 — Анимация появления уведомлений */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* #10 — Анимация переходов между страницами */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition-enter {
+  animation: page-fade-in 0.2s ease-out;
+}
+
+/* ══════════════════════════════════════════════════
+   #6 — Анимированный фон (блобы + частицы)
+   ══════════════════════════════════════════════════ */
+
+/* Плавающие градиентные блобы */
+.animated-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.blob-1 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, #f64a46 0%, transparent 70%);
+  top: -50px;
+  right: -50px;
+  animation: blob-float-1 12s ease-in-out infinite;
+}
+
+.blob-2 {
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, #ff8c4d 0%, transparent 70%);
+  bottom: -30px;
+  left: 200px;
+  animation: blob-float-2 15s ease-in-out infinite;
+}
+
+.blob-3 {
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, #f64a46 0%, transparent 70%);
+  top: 200px;
+  left: 400px;
+  animation: blob-float-3 10s ease-in-out infinite;
+}
+
+@keyframes blob-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, 30px) scale(1.1); }
+  66% { transform: translate(20px, -20px) scale(0.9); }
+}
+
+@keyframes blob-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -40px) scale(1.15); }
+  66% { transform: translate(-20px, 20px) scale(0.85); }
+}
+
+@keyframes blob-float-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, 30px) scale(1.2); }
+}
+
+/* Частицы (звёзды) */
+.particle {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  opacity: 0;
+  animation: particle-twinkle ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes particle-twinkle {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 0.4; }
+}

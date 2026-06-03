@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASTRA — Загрузка</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: transparent;
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Splash контейнер — точные координаты из imdex.tsx ── */
+    .splash {
+      position: relative;
+      width: 300px;
+      height: 358px;
+      overflow: hidden;
+      border-radius: 8px;
+      /* Фон: Subtract2.svg содержит Rectangle 40400.png как pattern */
+      background: url('/Rectangle 40400.png') center/cover no-repeat;
+    }
+
+    /* Рамка как в Subtract2.svg */
+    .splash::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      border: 0.5px solid rgba(255,255,255,0.1);
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    .splash img {
+      pointer-events: none;
+    }
+
+    /* ── Логотип ASTRA — top-[129px] left-[67px] ── */
+    .splash-logo {
+      position: absolute;
+      top: 129px;
+      left: 67px;
+      font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif;
+      font-size: 100px;
+      font-weight: normal;
+      color: white;
+      letter-spacing: -2px;
+      line-height: normal;
+      white-space: nowrap;
+      text-shadow: 0px 0px 142.5px #ffffff;
+    }
+
+    /* ── Красная полоска — top-[212px] left-[61px] w-[178px] h-[5px] ── */
+    .splash-line {
+      position: absolute;
+      top: 212px;
+      left: 61px;
+      width: 178px;
+      height: 5px;
+      background: #f64a46;
+      border-radius: 21px;
+    }
+
+    /* ── Статус загрузки — top-[292px] left-[72px] ── */
+    .splash-status {
+      position: absolute;
+      top: 292px;
+      left: 72px;
+      display: flex;
+      align-items: center;
+    }
+
+    .splash-status-icon {
+      position: relative;
+      display: block;
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Кастомный спиннер — SVG дуга внутри кольца */
+    .splash-status-icon .spinner-svg {
+      width: 15px;
+      height: 15px;
+      animation: spin 1s linear infinite;
+    }
+
+    .splash-status-text {
+      margin-left: 6px;
+      font-family: 'Proxima Nova Bold', 'Segoe UI', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      color: white;
+      letter-spacing: -0.26px;
+      line-height: normal;
+    }
+
+    /* ── Ошибка ── */
+    .splash-error {
+      position: absolute;
+      top: 340px;
+      left: 72px;
+      color: #f64a46;
+      font-size: 11px;
+    }
+
+    .splash-retry {
+      position: absolute;
+      top: 340px;
+      left: 72px;
+      padding: 5px 16px;
+      background: #f64a46;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .splash-retry:hover { background: #ff5a56; }
+
+    .hidden { display: none !important; }
+
+    /* ── Анимации (из 2.css) ── */
+    @keyframes fade-in {
+      0% { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    @keyframes fade-up {
+      0% { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(1turn); }
+    }
+
+    .animate-fade-in {
+      animation: fade-in 0.8s ease forwards;
+    }
+
+    .animate-fade-up {
+      animation: fade-up 0.8s ease forwards;
+    }
+
+    /* Пульсация красной полоски */
+    @keyframes pulse-line {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .splash-line {
+      animation: pulse-line 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="splash" onmousedown="if(window.startDrag)startDrag()">
+    <!-- ── Декоративные элементы — точные позиции из imdex.tsx ── -->
+
+    <!-- Subtract2 — красная подсветка слева сверху top-0 left-0 w-[300px] h-[312px] -->
+    <img src="/Subtract2.svg" alt="" style="position:absolute;top:0;left:0;width:300px;height:312px;" aria-hidden="true" />
+
+    <!-- Subtract3 — красная подсветка top-[54px] left-0 w-[300px] h-[304px] -->
+    <img src="/Subtract3.svg" alt="" style="position:absolute;top:54px;left:0;width:300px;height:304px;" aria-hidden="true" />
+
+    <!-- Star 21 — звезда top-0 left-[201px] w-[99px] h-[86px] -->
+    <img src="/Star 21.svg" alt="" style="position:absolute;top:0;left:201px;width:99px;height:86px;" aria-hidden="true" />
+
+    <!-- Star 22 — звезда top-[253px] left-0 w-[103px] h-[105px] -->
+    <img src="/Star 22.svg" alt="" style="position:absolute;top:253px;left:0;width:103px;height:105px;" aria-hidden="true" />
+
+    <!-- ── Логотип ── -->
+    <div class="splash-logo animate-fade-in">ASTRA</div>
+
+    <!-- ── Красная полоска ── -->
+    <div class="splash-line animate-fade-up" style="animation-delay:0.3s;opacity:0;"></div>
+
+    <!-- ── Статус загрузки ── -->
+    <div class="splash-status animate-fade-up" style="animation-delay:0.5s;opacity:0;">
+      <span class="splash-status-icon">
+        <svg class="spinner-svg" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Фоновое кольцо -->
+          <circle cx="7.5" cy="7.5" r="5.5" stroke="rgba(255,255,255,0.15)" stroke-width="2" fill="none"/>
+          <!-- Вращающаяся дуга (270°) -->
+          <circle cx="7.5" cy="7.5" r="5.5" stroke="white" stroke-width="2" fill="none"
+            stroke-dasharray="25.92 34.56" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <p class="splash-status-text" id="status">Проверка обновлений</p>
+    </div>
+
+    <!-- ── Ошибка / Повтор ── -->
+    <div class="splash-error hidden" id="errorText"></div>
+    <button class="splash-retry hidden" id="retryBtn">Повторить</button>
+  </div>
+
+  <script>
+    // Ждём загрузки Tauri v2 API
+    function waitForTauri() {
+      return new Promise((resolve) => {
+        if (window.__TAURI__) {
+          resolve(window.__TAURI__);
+          return;
+        }
+        const interval = setInterval(() => {
+          if (window.__TAURI__) {
+            clearInterval(interval);
+            resolve(window.__TAURI__);
+          }
+        }, 50);
+        // Таймаут 10 секунд
+        setTimeout(() => {
+          clearInterval(interval);
+          resolve(null);
+        }, 10000);
+      });
+    }
+
+    const statusEl = document.getElementById('status');
+    const errorText = document.getElementById('errorText');
+    const retryBtn = document.getElementById('retryBtn');
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorText.classList.remove('hidden');
+      retryBtn.classList.remove('hidden');
+    }
+
+    function hideError() {
+      errorText.classList.add('hidden');
+      retryBtn.classList.add('hidden');
+    }
+
+    async function startSetup() {
+      const tauri = await waitForTauri();
+      if (!tauri) {
+        statusEl.textContent = 'Ошибка загрузки API';
+        return;
+      }
+
+      const invoke = tauri.core.invoke;
+
+      function startDrag() {
+        tauri.window.getCurrentWindow().startDragging();
+      }
+      // Назначаем на глобал для onmousedown
+      window.startDrag = startDrag;
+
+      const SPLASH_DURATION = 7000;
+      const startTime = Date.now();
+
+      // Этап 1: Проверка FiveM
+      statusEl.textContent = 'Проверка FiveM…';
+      await sleep(1500);
+
+      try {
+        const installed = await invoke('check_fivem_installed');
+        if (installed) {
+          statusEl.textContent = 'FiveM найден ✓';
+        } else {
+          statusEl.textContent = 'FiveM не найден';
+        }
+      } catch (e) {
+        console.error('check_fivem_installed error:', e);
+        statusEl.textContent = 'Загрузка лаунчера…';
+      }
+
+      // Этап 2: Загрузка ресурсов
+      statusEl.textContent = 'Загрузка ресурсов…';
+      await sleep(2000);
+
+      // Этап 3: Проверка обновлений
+      statusEl.textContent = 'Проверка обновлений…';
+      await sleep(1500);
+
+      // Этап 4: Подготовка
+      statusEl.textContent = 'Подготовка лаунчера…';
+      await sleep(1000);
+
+      // Финал
+      statusEl.textContent = 'Готово ✓';
+
+      // Ждём оставшееся время до минимальной длительности
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, SPLASH_DURATION - elapsed);
+      await sleep(remaining);
+
+      // Открываем главное окно
+      try {
+        await invoke('show_main_window');
+      } catch (e) {
+        console.error('show_main_window error:', e);
+        setTimeout(async () => {
+          try {
+            await invoke('show_main_window');
+          } catch (e2) {
+            console.error('show_main_window retry error:', e2);
+          }
+        }, 1000);
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    startSetup();
+  </script>
+</body>
+</html>
