@@ -17,6 +17,20 @@
               user-select: none;
     }
 
+    /* Embed Armor Piercing for splash (falls back to Impact) */
+    @font-face {
+      font-family: 'Armor Piercing 2.0 BB';
+      src: url('/fonts/armor-piercing-2-0-bb_regular.cyrillic.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Armor Piercing 2.0 BB';
+      src: url('/fonts/armor-piercing-2-0-bb_italic.ttf') format('truetype');
+      font-weight: normal;
+      font-style: italic;
+    }
+
     /* ── Splash контейнер — точные координаты из imdex.tsx ── */
     .splash {
       position: relative;
@@ -49,7 +63,7 @@
       top: 129px;
       left: 67px;
       font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif;
-      font-size: 20vw;
+      font-size: clamp(32px, 4.2vw, 40px);
       font-weight: normal;
       color: white;
       letter-spacing: -2px;
@@ -316,4 +330,3 @@
   </script>
 </body>
 </html>
-
