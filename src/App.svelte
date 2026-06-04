@@ -1319,7 +1319,7 @@
              bg-[linear-gradient(90deg,rgba(0,0,0,0)_0%,rgba(246,74,70,0.21)_100%)]"></div>
         <!-- Кнопка Играть — pill shape -->
         <button
-          class="play-button btn-ripple absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
+          class="play-button absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
                  hover:bg-[#ff5a56] active:scale-[0.98] transition-all duration-150
                  disabled:opacity-50 disabled:cursor-not-allowed z-30
                  {serverOnline && !isLaunching ? 'play-button-pulse' : ''}"

@@ -1,0 +1,11 @@
+{
+  "version": "1.3.0",
+  "notes": "## ✨ Бесшовное автообновление\n\nОбновление теперь происходит автоматически — без установщика!\nПросто нажмите «Обновить» и лаунчер сам скачает и применит обновление.\n\n### UI/UX Полировка\n- Кастомный курсор\n- Stagger-анимации\n- Ripple/Bounce/Glow эффекты на кнопках\n- Text-reveal анимация заголовков\n- Progress-glow на полосе загрузки\n- Update badge pulse",
+  "pub_date": "2026-06-04T20:51:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL3VuUnVSNHZJMG5FeUVsYlo0clF3b3h4a0dvVDhaVGV0R3VqSkFDeFROWkJldjdMTGpNQ1J1VzlOejZPSWZwcXRDZlkvUGhETmsyYngrTG9JZ2o0Ym5IamlLcnNicUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNTk1NTEwCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS4zLjBfeDY0LXNldHVwLmV4ZQpJT053dll3dERZdXZoZkQySUpCdUhkbkpPMmFVZ3dOYVZydVhzQzRmOTJmMzNBdHpXdThCRDE5bURqc3I4SEVOQUhldWxFYXhIU2NFUDlBaUZrR2ZBUT09Cg==",
+      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.3.0/ASTRA.Launcher_1.3.0_x64-setup.exe"
+    }
+  }
+}
