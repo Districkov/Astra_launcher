@@ -1,6 +1,6 @@
 {
   "version": "1.6.2",
-  "notes": "## ✨ Бесшовное автообновление\n\nОбновление теперь происходит автоматически — без установщика!\nПросто нажмите «Обновить» и лаунчер сам скачает и применит обновление.\n\n### UI/UX Полировка\n- Кастомный курсор\n- Stagger-анимации\n- Ripple/Bounce/Glow эффекты на кнопках\n- Text-reveal анимация заголовков\n- Progress-glow на полосе загрузки\n- Update badge pulse",
+  "notes": "v1.6.2 - Device Pixel Ratio Fix\n\n2K Monitor Support\nFixed ASTRA text positioning on 2K displays using window.devicePixelRatio\nText now scales correctly with DPI settings\n\nWorks on 1080p, 1440p (2K), 2160p (4K), and all resolutions",
   "pub_date": "2026-06-04T20:51:00Z",
   "platforms": {
     "windows-x86_64": {
