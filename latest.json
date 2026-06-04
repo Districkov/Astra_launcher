@@ -1,11 +1,11 @@
 {
-  "version": "1.6.4",
-  "notes": "ASTRA v1.6.4 - Cache busting update",
-  "pub_date": "2026-06-04T21:00:00Z",
+  "version": "1.6.5",
+  "notes": "ASTRA v1.6.5 - Embedded fonts",
+  "pub_date": "2026-06-04T21:10:00Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "",
-      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.4/ASTRA.Launcher_1.6.4_x64-setup.exe"
+      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.5/ASTRA.Launcher_1.6.5_x64-setup.exe"
     }
   }
 }

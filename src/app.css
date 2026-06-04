@@ -31,9 +31,16 @@ body {
 /* Шрифт Armor Piercing (для логотипа ASTRA) */
 @font-face {
   font-family: 'Armor Piercing 2.0 BB';
-  src: local('Armor Piercing 2.0 BB');
+  src: url('/fonts/armor-piercing-2-0-bb_regular.cyrillic.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+}
+
+@font-face {
+  font-family: 'Armor Piercing 2.0 BB';
+  src: url('/fonts/armor-piercing-2-0-bb_italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
 }
 
 /* Proxima Nova fallback */
