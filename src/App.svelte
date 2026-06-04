@@ -97,7 +97,7 @@
 
   // ── Онбординг (первый запуск) ──────────────────
   let onboardingActive = $state(false);
-  let onboardingStep = $state(1); // 1=Приветствие, 2=FiveM, 3=Готово
+  let onboardingStep = $state(1); // 1=Приветствие, 2=FiveM, 3=Никнейм, 4=Готово
   let onboardingFivemSearching = $state(false);
   let onboardingFivemResult = $state(null); // null | 'found' | 'not_found'
   let onboardingNickname = $state("");
@@ -524,10 +524,10 @@
       }
       onboardingFivemSearching = false;
     } else if (onboardingStep === 2) {
-      // Переход к шагу 3 — готово
+      // Переход к шагу 3 — ввод никнейма
       onboardingStep = 3;
     } else if (onboardingStep === 3) {
-      // Завершить онбординг
+      // Сохранить никнейм и перейти к шагу 4
       onboardingNicknameSaving = true;
       const name = onboardingNickname.trim() || "Player";
       try {
@@ -538,6 +538,9 @@
         await invoke("complete_onboarding");
       } catch (e) {}
       onboardingNicknameSaving = false;
+      onboardingStep = 4;
+    } else if (onboardingStep === 4) {
+      // Закрыть онбординг
       onboardingActive = false;
     }
   }
@@ -1393,24 +1396,22 @@
             {/if}
           </div>
 
-        <!-- Шаг 3: Приятной игры! -->
+        <!-- Шаг 3: Ввод никнейма -->
         {:else if onboardingStep === 3}
           <div class="flex flex-col items-center text-center animate-onboarding-step">
-            <!-- Иконка ракеты -->
-            <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-[#f64a46]/10 border border-[#f64a46]/20">
-              <svg class="w-8 h-8 text-[#f64a46]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/>
-                <path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/>
-                <path d="M9 12H4s.55-3.03 2-4c1.62-.91 3 0 3 0"/>
-                <path d="M12 15v5s3.03-.55 4-2c.91-1.62 0-3 0-3"/>
+            <!-- Иконка пользователя -->
+            <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+              <svg class="w-8 h-8 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
               </svg>
             </div>
 
             <h2 class="text-xl text-white mb-2" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.40px;">
-              Почти готово!
+              Ваш никнейм
             </h2>
             <p class="text-sm text-white/40 mb-6" style="font-family: 'Proxima Nova Semibold', sans-serif;">
-              Введите ваш никнейм для сервера
+              Введите имя для отображения на сервере
             </p>
 
             <!-- Поле ввода никнейма -->
@@ -1434,14 +1435,44 @@
               onmouseenter={playHoverSound}
               disabled={onboardingNicknameSaving}
             >
-              {onboardingNicknameSaving ? "Сохранение…" : "Приятной игры!"}
+              {onboardingNicknameSaving ? "Сохранение…" : "Далее"}
+            </button>
+          </div>
+
+        <!-- Шаг 4: Приятной игры! -->
+        {:else if onboardingStep === 4}
+          <div class="flex flex-col items-center text-center animate-onboarding-step">
+            <!-- Иконка ракеты -->
+            <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-[#f64a46]/10 border border-[#f64a46]/20">
+              <svg class="w-8 h-8 text-[#f64a46]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/>
+                <path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/>
+                <path d="M9 12H4s.55-3.03 2-4c1.62-.91 3 0 3 0"/>
+                <path d="M12 15v5s3.03-.55 4-2c.91-1.62 0-3 0-3"/>
+              </svg>
+            </div>
+
+            <h2 class="text-2xl text-white mb-3" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">
+              Приятной игры!
+            </h2>
+            <p class="text-sm text-white/40 mb-10" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+              Всё настроено. Добро пожаловать на ASTRA RP!
+            </p>
+
+            <button
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={onboardingNext}
+              onmouseenter={playHoverSound}
+            >
+              Открыть лаунчер
             </button>
           </div>
         {/if}
 
         <!-- Индикатор шагов -->
         <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
-          {#each [1, 2, 3] as step}
+          {#each [1, 2, 3, 4] as step}
             <div class="w-2 h-2 rounded-full transition-all duration-300 {onboardingStep === step ? 'bg-[#f64a46] w-6' : onboardingStep > step ? 'bg-[#15ff00]/50' : 'bg-white/10'}"></div>
           {/each}
         </div>
