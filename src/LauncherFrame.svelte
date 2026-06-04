@@ -59,7 +59,7 @@
   <aside class="absolute left-0 top-0 w-40 h-full bg-[#1b1b1b] border-r border-white/10 flex flex-col z-20 overflow-y-auto">
     <!-- Logo -->
     <div class="px-4 py-5 flex-shrink-0">
-      <div class="text-2xl font-bold tracking-wider text-white [text-shadow:0px_0px_100px_#ffffff]">ASTRA</div>
+    <div class="text-2xl font-bold tracking-wider text-white [text-shadow:0px_0px_100px_#ffffff]" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(32px, 4.2vw, 40px);">ASTRA</div>
       <div class="w-14 h-0.5 bg-[#f64a46] rounded-full mt-2"></div>
     </div>
 
@@ -123,7 +123,7 @@
     {#if activeMenu === 'play'}
       <!-- Play Section -->
       <div class="text-center space-y-6">
-        <h2 class="text-6xl font-black tracking-wider text-white drop-shadow-2xl" style="text-shadow: 0 0 60px rgba(255,255,255,0.3)">ASTRA</h2>
+        <h2 class="text-6xl font-black tracking-wider text-white drop-shadow-2xl" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(255,255,255,0.3)">ASTRA</h2>
 
         {#if fivemFound}
           <div class="flex items-center gap-2 justify-center">
