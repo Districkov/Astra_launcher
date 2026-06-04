@@ -64,17 +64,17 @@
   let downloadSize = $state("");
   let downloadError = $state("");
 
-  // #5 — Автообновление
+  // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.3.0", latest_version: "", download_url: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.3.0", latest_version: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
   let updateDownloaded = $state(0);
   let updateTotal = $state(0);
-  let updateSetupPath = $state("");
   let updateError = $state("");
   let showUpdateModal = $state(false);
+  let pendingUpdate = $state(null); // объект Update от плагина
 
   // #7 — Уведомления сервера
   let notifications = $state([]);
@@ -215,45 +215,61 @@
     await Promise.all([loadServerStatus(), loadServerPing()]);
   }
 
-  // ── #5 Проверка обновлений ──────────────────────
+  // ── #5 Проверка обновлений (tauri-plugin-updater) ──────
   async function checkUpdates() {
     try {
-      const info = await invoke("check_for_updates");
-      updateAvailable = info.update_available;
-      updateInfo = info;
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
       updateChecked = true;
-      if (info.update_available) {
-        addNotification(`🔄 Доступно обновление: v${info.latest_version}`, "update");
+      if (update) {
+        updateAvailable = true;
+        pendingUpdate = update;
+        updateInfo = {
+          current_version: update.currentVersion,
+          latest_version: update.version,
+          release_notes: update.body || "",
+        };
+        addNotification(`🔄 Доступно обновление: v${update.version}`, "update");
       }
     } catch (e) {
-      // update check failed
+      console.error("Update check failed:", e);
       updateChecked = true;
     }
   }
 
-  // Слушатель прогресса скачивания обновления
-  let unlistenProgress = null;
-
   async function startUpdateDownload() {
     playClickSound();
+    if (!pendingUpdate) return;
     updateDownloading = true;
     updateDownloadPercent = 0;
     updateError = "";
-    updateSetupPath = "";
-
-    // Подписываемся на события прогресса
-    if (!unlistenProgress) {
-      unlistenProgress = await listen("update-download-progress", (event) => {
-        updateDownloadPercent = event.payload.percent;
-        updateDownloaded = event.payload.downloaded;
-        updateTotal = event.payload.total;
-      });
-    }
+    updateDownloaded = 0;
+    updateTotal = 0;
 
     try {
-      const path = await invoke("download_update", { url: updateInfo.download_url });
-      updateSetupPath = path;
-      updateDownloadPercent = 100;
+      let downloaded = 0;
+      let total = 0;
+      await pendingUpdate.downloadAndInstall((event) => {
+        switch (event.event) {
+          case 'Started':
+            total = event.data.contentLength || 0;
+            updateTotal = total;
+            break;
+          case 'Progress':
+            downloaded += event.data.chunkLength;
+            updateDownloaded = downloaded;
+            updateDownloadPercent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+            break;
+          case 'Finished':
+            updateDownloadPercent = 100;
+            break;
+        }
+      });
+      // Обновление скачано и установлено — перезапускаем
+      addNotification("✅ Обновление установлено! Перезапуск...", "success");
+      setTimeout(() => {
+        pendingUpdate.installAndRestart();
+      }, 1000);
     } catch (e) {
       updateError = String(e);
       updateDownloading = false;
@@ -262,9 +278,9 @@
 
   async function installUpdate() {
     playClickSound();
-    if (!updateSetupPath) return;
+    if (!pendingUpdate) return;
     try {
-      await invoke("install_update", { setupPath: updateSetupPath });
+      await pendingUpdate.installAndRestart();
     } catch (e) {
       updateError = String(e);
     }
@@ -939,11 +955,11 @@
           </div>
         {/if}
 
-        {#if updateDownloading && !updateSetupPath}
+        {#if updateDownloading}
           <!-- Прогресс скачивания -->
           <div class="mb-4">
             <div class="flex justify-between text-xs text-white/40 mb-1">
-              <span>Скачивание...</span>
+              <span>Скачивание обновления...</span>
               <span>{updateDownloadPercent}%</span>
             </div>
             <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
@@ -955,33 +971,17 @@
               </p>
             {/if}
           </div>
-        {/if}
-
-        {#if updateSetupPath}
-          <!-- Скачивание завершено — кнопка установки -->
-          <div class="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-            <p class="text-xs text-green-300 mb-2">✓ Обновление скачано</p>
-            <p class="text-[10px] text-white/30">Лаунчер будет закрыт для установки. Установщик запустится автоматически.</p>
-          </div>
           <div class="flex gap-3">
-            <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
-              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-              onclick={installUpdate}
-              onmouseenter={playHoverSound}
-            >
-              Установить обновление
-            </button>
             <button
               class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={closeUpdateModal}
               onmouseenter={playHoverSound}
             >
-              Позже
+              Свернуть
             </button>
           </div>
-        {:else if !updateDownloading}
+        {:else}
           <!-- Кнопка скачивания -->
           <div class="flex gap-3">
             <button
@@ -990,7 +990,7 @@
               onclick={startUpdateDownload}
               onmouseenter={playHoverSound}
             >
-              Скачать обновление
+              Обновить
             </button>
             <button
               class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
@@ -999,19 +999,6 @@
               onmouseenter={playHoverSound}
             >
               Позже
-            </button>
-          </div>
-        {:else}
-          <!-- Скачивание в процессе — только отмена -->
-          <div class="flex gap-3">
-            <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
-              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-              onclick={closeUpdateModal}
-              onmouseenter={playHoverSound}
-              disabled={updateDownloading && !updateSetupPath}
-            >
-              Скачивание...
             </button>
           </div>
         {/if}
