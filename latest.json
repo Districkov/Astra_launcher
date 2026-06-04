@@ -1,11 +1,11 @@
 {
-  "version": "1.6.6",
-  "notes": "ASTRA v1.6.6 - Harmonized ASTRA sizes",
-  "pub_date": "2026-06-05T12:00:00Z",
+  "version": "1.6.7",
+  "notes": "Component refactoring, TypeScript support, improved error handling, ARIA accessibility compliance, centralized constants configuration.",
+  "pub_date": "2026-06-05T00:55:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL3VuUnVSNHZJMGxqZFZzekk3MVBTcDRJQ2IvUDhMdkxpZGFLVlBMSVRCditXeFNwdjNNV3Jqc08zQUVSRnNsb2dQcjBjSHFlb0JaQXhwbWRCWllVeFNHZjZTQjdzK0FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjA4Mjk5CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS42LjZfeDY0LXNldHVwLmV4ZQpNcUxyRkVhWHNnZ3hnWXVnTVc4SlVrbHJUYWlOdDhzR0NOa3BudFFJVVBNYnBRdmdlYWpvUHkwTVpLdjcyWWttREsvZ3dlL1VPMXJTalp2ejNGb3pCZz09Cg==",
-      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.6/ASTRA.Launcher_1.6.6_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL3VuUnVSNHZJMGdVTXo4aXZwK09UMjZrSE1LdG1RUDRpWHdRSXpQUWpkVjFhNGpxc3ZpL3hkTjFleC9ZZlRzNU1UZ01wWlBMYnFrVkw2b2NnQlpVNElPUkI1d0Q2d2dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjEwMTM2CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS42LjdfeDY0LXNldHVwLmV4ZQoydlBuV3cyMytxdmNkUDBqK083ZUErZ2dLaHkvc2pLTlZjV0EwZGNZSVVTRCtxK2dkejNjT2JkS0RhREpBeDYrUDdTT1loQk5USEEwSDJqeUhvVE1CUT09Cg==",
+      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.7/ASTRA.Launcher_1.6.7_x64-setup.exe"
     }
   }
 }
