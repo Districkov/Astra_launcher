@@ -23,6 +23,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { SIZES, COLORS, FONTS } from "./constants";
+  import { handleError, ErrorLogger } from "./errorHandling";
 
   let appWindow;
   try {
