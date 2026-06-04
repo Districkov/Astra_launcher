@@ -66,7 +66,7 @@
 
   // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.3.0", latest_version: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.4.0", latest_version: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
@@ -824,7 +824,7 @@
       <div class="pointer-events-auto px-4 py-2.5 rounded-lg text-sm shadow-lg backdrop-blur-sm transition-all duration-300 animate-slide-in
         {notif.type === 'success' ? 'bg-green-500/20 border border-green-500/30 text-green-300' :
          notif.type === 'error' ? 'bg-red-500/20 border border-red-500/30 text-red-300' :
-         notif.type === 'update' ? 'bg-blue-500/20 border border-blue-500/30 text-blue-300' :
+         notif.type === 'update' ? 'bg-[#f64a46]/20 border border-[#f64a46]/30 text-[#ff8c8c]' :
          'bg-white/10 border border-white/10 text-white/70'}">
         {notif.message}
       </div>
@@ -836,13 +836,13 @@
        ═══════════════════════════════════════════════ -->
   {#if updateAvailable}
     <button
-      class="absolute top-[40px] left-[170px] z-[80] flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/20 cursor-pointer hover:bg-blue-500/25 transition-colors"
+      class="absolute top-[40px] left-[170px] z-[80] flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f64a46]/15 border border-[#f64a46]/20 cursor-pointer hover:bg-[#f64a46]/25 transition-colors"
       onclick={openUpdateModal}
       onmouseenter={playHoverSound}
       aria-label="Доступно обновление"
     >
-      <div class="w-2 h-2 rounded-full bg-blue-400 update-badge-dot"></div>
-      <span class="text-xs text-blue-300">Обновление v{updateInfo.latest_version}</span>
+      <div class="w-2 h-2 rounded-full bg-[#f64a46] update-badge-dot"></div>
+      <span class="text-xs text-[#ff8c8c]">Обновление v{updateInfo.latest_version}</span>
     </button>
   {/if}
 
@@ -933,7 +933,7 @@
           <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
             ASTRA
           </div>
-          <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-blue-400 rounded-full"></div>
+          <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-[#f64a46] rounded-full"></div>
         </div>
 
         <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
@@ -963,7 +963,7 @@
               <span>{updateDownloadPercent}%</span>
             </div>
             <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 rounded-full transition-all duration-300 progress-glow" style="width: {updateDownloadPercent}%"></div>
+              <div class="h-full bg-[#f64a46] rounded-full transition-all duration-300 progress-glow" style="width: {updateDownloadPercent}%"></div>
             </div>
             {#if updateDownloaded > 0}
               <p class="text-[10px] text-white/20 mt-1">
@@ -985,7 +985,7 @@
           <!-- Кнопка скачивания -->
           <div class="flex gap-3">
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={startUpdateDownload}
               onmouseenter={playHoverSound}
@@ -1231,10 +1231,10 @@
             <p class="text-xs text-[#f64a46]/80 mt-1">Сервер офлайн</p>
           {/if}
           {#if updateAvailable}
-            <div class="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <p class="text-xs text-blue-300 mb-2">🔄 Доступно обновление до v{updateInfo.latest_version}</p>
+            <div class="mt-3 p-3 rounded-lg bg-[#f64a46]/10 border border-[#f64a46]/20">
+              <p class="text-xs text-[#ff8c8c] mb-2">🔄 Доступно обновление до v{updateInfo.latest_version}</p>
               <button
-                class="px-4 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs text-blue-200 transition-colors btn-ripple"
+                class="px-4 py-1.5 bg-[#f64a46]/20 hover:bg-[#f64a46]/30 rounded text-xs text-[#ff8c8c] transition-colors btn-ripple"
                 onclick={openUpdateModal}
                 onmouseenter={playHoverSound}
               >
