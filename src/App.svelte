@@ -90,6 +90,19 @@
   // #13 — Discord Rich Presence (флаг)
   let discordRpcActive = $state(false);
 
+  // Частицы — позиции кэшируются один раз
+  let particleStyles = $state([]);
+  function initParticles() {
+    particleStyles = Array.from({ length: 30 }, () => ({
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 8}s`,
+      duration: `${4 + Math.random() * 6}s`,
+      width: `${1 + Math.random() * 2}px`,
+      height: `${1 + Math.random() * 2}px`,
+    }));
+  }
+
 
 
   // Производное: текст кнопки
@@ -492,16 +505,15 @@
 
   // ── #12 Drag зоны ───────────────────────────────
   function startDrag(e) {
-    // Только из drag-зоны (верхняя полоса) или пустой области
-    const isDragZone = e.target.closest('[data-drag-zone]');
-    const isInteractive = e.target.closest('button, input, a, [role="button"], select, textarea');
-    if (!isDragZone && isInteractive) return;
-    if (!isDragZone) return;
-    getCurrentWindow().startDragging();
+    const isInteractive = e.target.closest('button, input, a, [role="button"], select, textarea, [data-no-drag]');
+    if (isInteractive) return;
+    if (appWindow) appWindow.startDragging();
   }
 
   // ── Инициализация ───────────────────────────────
   onMount(() => {
+    initParticles();
+
     // #11 — Инициализация звуков через AudioContext
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -564,7 +576,7 @@
 <!-- ── Корневой контейнер ── -->
 <svelte:window onmousedown={startDrag} />
 
-<div class="relative w-[960px] h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none">
+<div class="relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none">
 
   <!-- ═══════════════════════════════════════════════
        #6 АНИМИРОВАННЫЙ ФОН (частицы + градиент)
@@ -575,22 +587,17 @@
     <div class="animated-blob blob-2"></div>
     <div class="animated-blob blob-3"></div>
     <!-- Частицы (звёзды) -->
-    {#each Array(30) as _, i}
+    {#each particleStyles as ps, i}
       <div class="particle" style="
-        left: {Math.random() * 100}%;
-        top: {Math.random() * 100}%;
-        animation-delay: {Math.random() * 8}s;
-        animation-duration: {4 + Math.random() * 6}s;
-        width: {1 + Math.random() * 2}px;
-        height: {1 + Math.random() * 2}px;
+        left: {ps.left};
+        top: {ps.top};
+        animation-delay: {ps.delay};
+        animation-duration: {ps.duration};
+        width: {ps.width};
+        height: {ps.height};
       "></div>
     {/each}
   </div>
-
-  <!-- ═══════════════════════════════════════════════
-       #12 DRAG ZONE — верхняя полоса для перетаскивания
-       ═══════════════════════════════════════════════ -->
-  <div data-drag-zone class="absolute top-0 left-0 right-0 h-[32px] z-[90] cursor-default"></div>
 
   <!-- ═══════════════════════════════════════════════
        #7 УВЕДОМЛЕНИЯ (toast)
@@ -669,12 +676,12 @@
   </svg>
 
   <!-- GTAV персонаж — выше текста ASTRA и звёзд, но ниже кнопки играть -->
-  <img src="/GTAV-33-4.png.png" alt="" class="absolute top-4 left-[158px] w-[802px] h-[624px] object-cover pointer-events-none select-none z-[5]" aria-hidden="true" />
+  <img src="/GTAV-33-4.png.png" alt="" class="absolute top-4 left-[16.5%] w-[83.5%] h-[104%] object-cover pointer-events-none select-none z-[5]" aria-hidden="true" />
 
-  <!-- Большой текст ASTRA на фоне (400px как в imdex.tsx) -->
-  <div class="absolute top-[108px] left-[230px] w-[662px] h-[400px] pointer-events-none select-none flex">
-    <div class="w-[660px] h-[400px]"
-         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 400px; font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: -8px; line-height: normal; white-space: nowrap;">
+  <!-- Большой текст ASTRA на фоне -->
+  <div class="absolute top-[108px] left-[230px] pointer-events-none select-none flex">
+    <div class="pointer-events-none select-none"
+         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(280px, 41.7vw, 400px); font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: -8px; line-height: normal; white-space: nowrap;">
       ASTRA
     </div>
   </div>
@@ -699,8 +706,8 @@
 
     <!-- Логотип ASTRA -->
     <div class="pt-[26px] pl-[44px]">
-      <div class="text-white text-[40px] tracking-[-0.8px] leading-none"
-           style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif;">
+      <div class="text-white tracking-[-0.8px] leading-none"
+           style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(32px, 4.2vw, 40px);">
         ASTRA
       </div>
       <!-- Красная полоска под логотипом -->
@@ -790,7 +797,7 @@
       </div>
       <button
         class="px-4 py-1 text-xs text-white/30 hover:text-white/60 hover:bg-white/5 rounded transition-colors"
-        onclick={(e) => { e.stopPropagation(); playClickSound(); invoke("window_close"); }}
+        onclick={(e) => { e.stopPropagation(); playClickSound(); username = "Player"; addNotification("Вы вышли из аккаунта", "info"); }}
         onmouseenter={playHoverSound}
       >
         Выйти
