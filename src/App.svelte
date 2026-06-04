@@ -66,7 +66,7 @@
 
   // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.4.0", latest_version: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.5.0", latest_version: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
@@ -334,7 +334,7 @@
     try {
       await invoke("set_discord_rpc", {
         state: "Играет на сервере",
-        details: "185.176.94.21:30120",
+        details: "ASTRA RP",
         largeText: "ASTRA RP"
       });
     } catch (e) {}
@@ -1037,10 +1037,10 @@
        style="transform: translate({parallaxX * 0.8}px, {parallaxY * 0.8}px);" aria-hidden="true" />
 
   <!-- Большой текст ASTRA на фоне -->
-  <div class="absolute top-[18%] left-[24%] pointer-events-none select-none flex transition-transform duration-300 ease-out"
+  <div class="absolute top-[108px] left-[230px] pointer-events-none select-none flex transition-transform duration-300 ease-out"
        style="transform: translate({parallaxX * 1}px, {parallaxY * 1}px);">
     <div class="pointer-events-none select-none"
-         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(280px, 41.7vw, 400px); font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: -8px; line-height: normal; white-space: nowrap;">
+         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 280px; font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: -8px; line-height: normal; white-space: nowrap;">
       ASTRA
     </div>
   </div>
