@@ -1,6 +1,6 @@
 {
   "version": "1.6.2",
-  "notes": "v1.6.2 Fixed ASTRA text on 2K displays",
+  "notes": "ASTRA v1.6.2 Fixed 2K display",
   "pub_date": "2026-06-04T20:51:00Z",
   "platforms": {
     "windows-x86_64": {
