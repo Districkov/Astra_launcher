@@ -68,7 +68,7 @@
 
   // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.6.6", latest_version: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.6.7", latest_version: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
