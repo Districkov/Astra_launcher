@@ -1447,8 +1447,8 @@
         {#if onboardingStep === 1}
           <div class="flex flex-col items-center text-center animate-onboarding-step">
             <!-- Логотип ASTRA -->
-            <div class="mb-2 text-[56px] text-white tracking-[-1.2px] leading-none"
-                 style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(246,74,70,0.4);">
+            <div class="mb-2 text-white tracking-[-1.2px] leading-none"
+                 style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(246,74,70,0.4); font-size: clamp(32px, 4.2vw, 40px);">
               ASTRA
             </div>
             <div class="w-[80px] h-[3px] bg-[#f64a46] rounded-full mb-8"></div>

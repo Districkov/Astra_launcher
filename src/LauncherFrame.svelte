@@ -123,7 +123,7 @@
     {#if activeMenu === 'play'}
       <!-- Play Section -->
       <div class="text-center space-y-6">
-        <h2 class="text-6xl font-black tracking-wider text-white drop-shadow-2xl" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(255,255,255,0.3)">ASTRA</h2>
+        <h2 class="font-black tracking-wider text-white drop-shadow-2xl" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(255,255,255,0.3); font-size: clamp(32px, 4.2vw, 40px);">ASTRA</h2>
 
         {#if fivemFound}
           <div class="flex items-center gap-2 justify-center">
