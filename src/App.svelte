@@ -66,8 +66,15 @@
 
   // #5 — Автообновление
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.0.0", latest_version: "", download_url: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.1.0", latest_version: "", download_url: "", release_notes: "" });
   let updateChecked = $state(false);
+  let updateDownloading = $state(false);
+  let updateDownloadPercent = $state(0);
+  let updateDownloaded = $state(0);
+  let updateTotal = $state(0);
+  let updateSetupPath = $state("");
+  let updateError = $state("");
+  let showUpdateModal = $state(false);
 
   // #7 — Уведомления сервера
   let notifications = $state([]);
@@ -222,6 +229,55 @@
       // update check failed
       updateChecked = true;
     }
+  }
+
+  // Слушатель прогресса скачивания обновления
+  let unlistenProgress = null;
+
+  async function startUpdateDownload() {
+    playClickSound();
+    updateDownloading = true;
+    updateDownloadPercent = 0;
+    updateError = "";
+    updateSetupPath = "";
+
+    // Подписываемся на события прогресса
+    if (!unlistenProgress) {
+      unlistenProgress = await listen("update-download-progress", (event) => {
+        updateDownloadPercent = event.payload.percent;
+        updateDownloaded = event.payload.downloaded;
+        updateTotal = event.payload.total;
+      });
+    }
+
+    try {
+      const path = await invoke("download_update", { url: updateInfo.download_url });
+      updateSetupPath = path;
+      updateDownloadPercent = 100;
+    } catch (e) {
+      updateError = String(e);
+      updateDownloading = false;
+    }
+  }
+
+  async function installUpdate() {
+    playClickSound();
+    if (!updateSetupPath) return;
+    try {
+      await invoke("install_update", { setupPath: updateSetupPath });
+    } catch (e) {
+      updateError = String(e);
+    }
+  }
+
+  function openUpdateModal() {
+    playClickSound();
+    showUpdateModal = true;
+  }
+
+  function closeUpdateModal() {
+    playClickSound();
+    showUpdateModal = false;
   }
 
   // ── #9 Имя пользователя ────────────────────────
@@ -765,7 +821,7 @@
   {#if updateAvailable}
     <button
       class="absolute top-[40px] left-[170px] z-[80] flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/20 cursor-pointer hover:bg-blue-500/25 transition-colors"
-      onclick={() => { playClickSound(); openUrl(updateInfo.download_url || 'https://github.com/astra-launcher/astra-launcher/releases'); }}
+      onclick={openUpdateModal}
       onmouseenter={playHoverSound}
       aria-label="Доступно обновление"
     >
@@ -809,9 +865,9 @@
        МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКРЫТИЯ
        ═══════════════════════════════════════════════ -->
   {#if showCloseConfirm}
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onclick={() => { showCloseConfirm = false; }}>
-      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-xs w-full shadow-2xl" onclick={(e) => e.stopPropagation()}>
         <!-- Логотип ASTRA + красная полоска -->
         <div class="text-center mb-5">
@@ -844,6 +900,121 @@
             Отмена
           </button>
         </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ═══════════════════════════════════════════════
+       МОДАЛКА ОБНОВЛЕНИЯ
+       ═══════════════════════════════════════════════ -->
+  {#if showUpdateModal}
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onclick={closeUpdateModal}>
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div role="dialog" class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl" onclick={(e) => e.stopPropagation()}>
+        <!-- Логотип ASTRA -->
+        <div class="text-center mb-4">
+          <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
+            ASTRA
+          </div>
+          <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-blue-400 rounded-full"></div>
+        </div>
+
+        <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
+          🔄 Доступно обновление
+        </h3>
+        <p class="text-sm text-white/40 mb-4 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+          v{updateInfo.current_version} → v{updateInfo.latest_version}
+        </p>
+
+        {#if updateInfo.release_notes}
+          <div class="mb-4 p-3 rounded-lg bg-white/5 border border-white/5 max-h-[120px] overflow-y-auto">
+            <p class="text-xs text-white/50 whitespace-pre-wrap">{updateInfo.release_notes}</p>
+          </div>
+        {/if}
+
+        {#if updateError}
+          <div class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <p class="text-xs text-red-300">❌ {updateError}</p>
+          </div>
+        {/if}
+
+        {#if updateDownloading && !updateSetupPath}
+          <!-- Прогресс скачивания -->
+          <div class="mb-4">
+            <div class="flex justify-between text-xs text-white/40 mb-1">
+              <span>Скачивание...</span>
+              <span>{updateDownloadPercent}%</span>
+            </div>
+            <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: {updateDownloadPercent}%"></div>
+            </div>
+            {#if updateDownloaded > 0}
+              <p class="text-[10px] text-white/20 mt-1">
+                {(updateDownloaded / 1048576).toFixed(1)} МБ{updateTotal > 0 ? ` / ${(updateTotal / 1048576).toFixed(1)} МБ` : ''}
+              </p>
+            {/if}
+          </div>
+        {/if}
+
+        {#if updateSetupPath}
+          <!-- Скачивание завершено — кнопка установки -->
+          <div class="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <p class="text-xs text-green-300 mb-2">✓ Обновление скачано</p>
+            <p class="text-[10px] text-white/30">Лаунчер будет закрыт для установки. Установщик запустится автоматически.</p>
+          </div>
+          <div class="flex gap-3">
+            <button
+              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={installUpdate}
+              onmouseenter={playHoverSound}
+            >
+              Установить обновление
+            </button>
+            <button
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={closeUpdateModal}
+              onmouseenter={playHoverSound}
+            >
+              Позже
+            </button>
+          </div>
+        {:else if !updateDownloading}
+          <!-- Кнопка скачивания -->
+          <div class="flex gap-3">
+            <button
+              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={startUpdateDownload}
+              onmouseenter={playHoverSound}
+            >
+              Скачать обновление
+            </button>
+            <button
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={closeUpdateModal}
+              onmouseenter={playHoverSound}
+            >
+              Позже
+            </button>
+          </div>
+        {:else}
+          <!-- Скачивание в процессе — только отмена -->
+          <div class="flex gap-3">
+            <button
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={closeUpdateModal}
+              onmouseenter={playHoverSound}
+              disabled={updateDownloading && !updateSetupPath}
+            >
+              Скачивание...
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -1077,10 +1248,10 @@
               <p class="text-xs text-blue-300 mb-1">🔄 Доступно обновление до v{updateInfo.latest_version}</p>
               <button
                 class="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs text-blue-300 transition-colors"
-                onclick={() => { playClickSound(); openUrl(updateInfo.download_url || 'https://github.com/astra-launcher/astra-launcher/releases'); }}
+                onclick={openUpdateModal}
                 onmouseenter={playHoverSound}
               >
-                Скачать обновление
+                Скачать и установить
               </button>
             </div>
           {:else if updateChecked}
@@ -1275,7 +1446,7 @@
        ОНБОРДИНГ (первый запуск)
        ═══════════════════════════════════════════════ -->
   {#if onboardingActive}
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="absolute inset-0 z-[500] flex items-center justify-center bg-[#0d0d0d]/95 backdrop-blur-md animate-onboarding-in">
       <div class="flex flex-col items-center justify-center w-full h-full max-w-md px-8 animate-onboarding-content">
 

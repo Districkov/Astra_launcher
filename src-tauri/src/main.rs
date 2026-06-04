@@ -677,11 +677,10 @@ fn close_embedded_webview(window: tauri::Window) -> Result<(), String> {
 /// ─────────────────────────────────────────────
 
 /// Текущая версия лаунчера (должна совпадать с Cargo.toml)
-const LAUNCHER_VERSION: &str = "1.0.0";
+const LAUNCHER_VERSION: &str = "1.1.0";
 
 /// URL для проверки обновлений (GitHub releases API)
-/// Замените на свой репозиторий при необходимости
-const UPDATE_CHECK_URL: &str = "https://api.github.com/repos/astra-launcher/astra-launcher/releases/latest";
+const UPDATE_CHECK_URL: &str = "https://api.github.com/repos/Districkov/Astra_launcher/releases/latest";
 
 /// Проверяет наличие обновлений через GitHub Releases API.
 /// Возвращает JSON с информацией об обновлении, если доступно.
@@ -717,10 +716,18 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
         .unwrap_or(LAUNCHER_VERSION)
         .trim_start_matches('v');
 
+    // Ищем .exe установщик (NSIS) среди assets
     let download_url = release
         .get("assets")
         .and_then(|a| a.as_array())
-        .and_then(|assets| assets.first())
+        .and_then(|assets| {
+            assets.iter().find(|asset| {
+                asset.get("name")
+                    .and_then(|n| n.as_str())
+                    .map(|name| name.ends_with("-setup.exe"))
+                    .unwrap_or(false)
+            })
+        })
         .and_then(|asset| asset.get("browser_download_url"))
         .and_then(|u| u.as_str())
         .unwrap_or("")
@@ -741,6 +748,88 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
         "download_url": download_url,
         "release_notes": release_notes
     }))
+}
+
+/// Скачивает обновление (NSIS .exe) с прогрессом
+#[command]
+async fn download_update(url: String, window: tauri::Window) -> Result<String, String> {
+    if url.is_empty() {
+        return Err("URL скачивания пуст".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("User-Agent", "ASTRA-Launcher-Updater")
+        .timeout(std::time::Duration::from_secs(300)) // 5 мин
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка подключения: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Сервер вернул статус {}", response.status()));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    // Путь: %APPDATA%/astra-launcher/update/setup.exe
+    let update_dir = launcher_data_dir().join("update");
+    fs::create_dir_all(&update_dir)
+        .map_err(|e| format!("Ошибка создания папки: {}", e))?;
+
+    let setup_path = update_dir.join("ASTRA_Launcher_update_setup.exe");
+    let mut file = fs::File::create(&setup_path)
+        .map_err(|e| format!("Ошибка создания файла: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+    use futures_util::StreamExt;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Ошибка чтения: {}", e))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("Ошибка записи: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        let percent = if total_size > 0 {
+            (downloaded as f64 / total_size as f64 * 100.0) as u32
+        } else {
+            // Если размер неизвестен — считаем по мегабайтам (примерно 5 МБ)
+            std::cmp::min((downloaded as f64 / 5_000_000.0 * 100.0) as u32, 99)
+        };
+
+        let payload = serde_json::json!({
+            "downloaded": downloaded,
+            "total": total_size,
+            "percent": percent
+        });
+        let _ = window.emit("update-download-progress", &payload);
+    }
+
+    drop(file);
+
+    Ok(setup_path.to_string_lossy().to_string())
+}
+
+/// Запускает скачанный установщик и закрывает лаунчер
+#[command]
+fn install_update(setup_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&setup_path);
+    if !path.exists() {
+        return Err("Файл установщика не найден".to_string());
+    }
+
+    // Запускаем установщик (NSIS с ключом /S — тихая установка, или без — с GUI)
+    Command::new(&setup_path)
+        .creation_flags(0x00000008) // DETACHED_PROCESS
+        .spawn()
+        .map_err(|e| format!("Ошибка запуска установщика: {}", e))?;
+
+    // Даём установщику секунду на запуск, затем закрываем лаунчер
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // Закрываем лаунчер
+    std::process::exit(0);
 }
 
 /// ─────────────────────────────────────────────
@@ -1111,6 +1200,8 @@ fn main() {
             close_embedded_webview,
             // Обновления
             check_for_updates,
+            download_update,
+            install_update,
             // Имя пользователя
             get_username,
             save_username,
