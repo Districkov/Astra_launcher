@@ -940,6 +940,28 @@ async fn upload_to_gallery(image_path: String, author: String) -> Result<serde_j
 }
 
 /// ─────────────────────────────────────────────
+/// 🎬 ОНБОРДИНГ (первый запуск)
+/// ─────────────────────────────────────────────
+
+/// Путь к файлу флага онбординга
+fn onboarding_flag_path() -> PathBuf {
+    launcher_data_dir().join(".onboarding_complete")
+}
+
+/// Проверяет, пройден ли онбординг (первый запуск)
+#[command]
+fn is_onboarding_complete() -> Result<bool, String> {
+    Ok(onboarding_flag_path().exists())
+}
+
+/// Отмечает онбординг как пройденный
+#[command]
+fn complete_onboarding() -> Result<(), String> {
+    fs::write(onboarding_flag_path(), chrono::Utc::now().to_rfc3339())
+        .map_err(|e| format!("Ошибка записи флага онбординга: {}", e))
+}
+
+/// ─────────────────────────────────────────────
 /// 🖥️ СВЕРНУТЬ В ТРЕЙ (#9)
 /// ─────────────────────────────────────────────
 
@@ -1107,6 +1129,9 @@ fn main() {
             // Discord Rich Presence
             set_discord_rpc,
             clear_discord_rpc,
+            // Онбординг (первый запуск)
+            is_onboarding_complete,
+            complete_onboarding,
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка при запуске Tauri");

@@ -95,6 +95,14 @@
   // Анимация появления лаунчера
   let launcherReady = $state(false);
 
+  // ── Онбординг (первый запуск) ──────────────────
+  let onboardingActive = $state(false);
+  let onboardingStep = $state(1); // 1=Приветствие, 2=FiveM, 3=Готово
+  let onboardingFivemSearching = $state(false);
+  let onboardingFivemResult = $state(null); // null | 'found' | 'not_found'
+  let onboardingNickname = $state("");
+  let onboardingNicknameSaving = $state(false);
+
   // Параллакс — смещение фона при движении мыши
   let parallaxX = $state(0);
   let parallaxY = $state(0);
@@ -482,6 +490,111 @@
     await loadFivemPath();
   }
 
+  // ── Онбординг (первый запуск) ──────────────────
+  async function checkOnboarding() {
+    try {
+      const complete = await invoke("is_onboarding_complete");
+      if (!complete) {
+        onboardingActive = true;
+        onboardingStep = 1;
+      }
+    } catch (e) {
+      // По умолчанию — не показываем
+    }
+  }
+
+  async function onboardingNext() {
+    playClickSound();
+    if (onboardingStep === 1) {
+      // Переход к шагу 2 — автопоиск FiveM
+      onboardingStep = 2;
+      onboardingFivemSearching = true;
+      onboardingFivemResult = null;
+      try {
+        const path = await invoke("auto_find_fivem");
+        if (path) {
+          fivemPath = path;
+          fivemFound = true;
+          onboardingFivemResult = 'found';
+        } else {
+          onboardingFivemResult = 'not_found';
+        }
+      } catch (e) {
+        onboardingFivemResult = 'not_found';
+      }
+      onboardingFivemSearching = false;
+    } else if (onboardingStep === 2) {
+      // Переход к шагу 3 — готово
+      onboardingStep = 3;
+    } else if (onboardingStep === 3) {
+      // Завершить онбординг
+      onboardingNicknameSaving = true;
+      const name = onboardingNickname.trim() || "Player";
+      try {
+        await invoke("save_username", { name });
+        username = name;
+      } catch (e) {}
+      try {
+        await invoke("complete_onboarding");
+      } catch (e) {}
+      onboardingNicknameSaving = false;
+      onboardingActive = false;
+    }
+  }
+
+  async function onboardingSelectFivem() {
+    playClickSound();
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "FiveM", extensions: ["exe"] }],
+      });
+      if (selected) {
+        await invoke("set_fivem_path", { path: selected });
+        fivemPath = selected;
+        fivemFound = true;
+        onboardingFivemResult = 'found';
+      }
+    } catch (e) {}
+  }
+
+  async function onboardingDownloadFivem() {
+    playClickSound();
+    isDownloading = true;
+    downloadPercent = 0;
+    downloadSize = "";
+    downloadError = "";
+    try {
+      const unlisten = await listen("download-progress", (event) => {
+        const { downloaded, total, percent } = event.payload;
+        downloadPercent = percent;
+        downloadSize = total > 0 ? `${fmtSize(downloaded)} / ${fmtSize(total)}` : fmtSize(downloaded);
+      });
+      await invoke("download_fivem");
+      unlisten();
+      downloadPercent = 100;
+      downloadSize = "Запуск установщика…";
+      await invoke("launch_fivem_installer");
+      statusMessage = "Установщик запущен. Дождитесь установки, затем нажмите «Проверить».";
+      const poll = setInterval(async () => {
+        try {
+          const installed = await invoke("check_fivem_installed");
+          if (installed) {
+            clearInterval(poll);
+            await loadFivemPath();
+            isDownloading = false;
+            onboardingFivemResult = 'found';
+            statusMessage = "FiveM установлен ✓";
+            setTimeout(() => { statusMessage = ""; }, 3000);
+          }
+        } catch (e) {}
+      }, 3000);
+    } catch (error) {
+      downloadError = `${error}`;
+      isDownloading = false;
+    }
+  }
+
   // ── Telegram в лаунчере (встроенный webview) ──
   let browserActive = $state(false);
 
@@ -532,11 +645,8 @@
   }
 
   // ── #12 Drag зоны ───────────────────────────────
-  function startDrag(e) {
-    const isInteractive = e.target.closest('button, input, a, [role="button"], select, textarea, [data-no-drag]');
-    if (isInteractive) return;
-    if (appWindow) appWindow.startDragging();
-  }
+  // Перетаскивание теперь через data-tauri-drag-region на drag-зоне
+  // (нативный механизм Tauri, надёжнее чем startDragging)
 
   // ── Инициализация ───────────────────────────────
   onMount(() => {
@@ -588,6 +698,7 @@
     loadServerPing();
     checkUpdates();
     initDiscordRpc();
+    checkOnboarding();
 
     // Автообновление сервера каждые 10 сек (без мерцания — serverLoading не переключается)
     const serverInterval = setInterval(loadServerStatus, 10000);
@@ -604,7 +715,7 @@
 </script>
 
 <!-- ── Корневой контейнер ── -->
-<svelte:window onmousedown={startDrag} onmousemove={handleMouseMove} />
+<svelte:window onmousemove={handleMouseMove} />
 
 <div class="relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 
@@ -659,6 +770,15 @@
       <span class="text-xs text-blue-300">Обновление v{updateInfo.latest_version}</span>
     </button>
   {/if}
+
+  <!-- ═══════════════════════════════════════════════
+       DRAG ZONE — верхняя полоса для перетаскивания окна
+       data-tauri-drag-region + fallback startDragging()
+       ═══════════════════════════════════════════════ -->
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div data-tauri-drag-region role="none" class="absolute top-0 left-0 right-[80px] h-[32px] z-[99] cursor-default"
+       onmousedown={() => { if (appWindow) appWindow.startDragging(); }}>
+  </div>
 
   <!-- ═══════════════════════════════════════════════
        КНОПКИ УПРАВЛЕНИЯ ОКНОМ (свернуть / закрыть)
@@ -784,8 +904,9 @@
        ═══════════════════════════════════════════════ -->
   <aside class="absolute top-0 left-0 w-[157px] h-full bg-[#1b1b1b] rounded-l-[5px] z-20 flex flex-col">
 
-    <!-- Логотип ASTRA -->
-    <div class="pt-[26px] pl-[44px]">
+    <!-- Логотип ASTRA (drag-зона) -->
+    <div data-tauri-drag-region role="none" class="pt-[26px] pl-[44px] cursor-default"
+         onmousedown={() => { if (appWindow) appWindow.startDragging(); }}>
       <div class="text-white tracking-[-0.8px] leading-none"
            style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(32px, 4.2vw, 40px);">
         ASTRA
@@ -1146,4 +1267,185 @@
     </div>
     {/key}
   </main>
+
+  <!-- ═══════════════════════════════════════════════
+       ОНБОРДИНГ (первый запуск)
+       ═══════════════════════════════════════════════ -->
+  {#if onboardingActive}
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="absolute inset-0 z-[500] flex items-center justify-center bg-[#0d0d0d]/95 backdrop-blur-md animate-onboarding-in">
+      <div class="flex flex-col items-center justify-center w-full h-full max-w-md px-8 animate-onboarding-content">
+
+        <!-- Шаг 1: Добро пожаловать -->
+        {#if onboardingStep === 1}
+          <div class="flex flex-col items-center text-center animate-onboarding-step">
+            <!-- Логотип ASTRA -->
+            <div class="mb-2 text-[56px] text-white tracking-[-1.2px] leading-none"
+                 style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(246,74,70,0.4);">
+              ASTRA
+            </div>
+            <div class="w-[80px] h-[3px] bg-[#f64a46] rounded-full mb-8"></div>
+            <h1 class="text-2xl text-white mb-3" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">
+              Добро пожаловать!
+            </h1>
+            <p class="text-sm text-white/40 mb-10 max-w-xs" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+              Лаунчер для подключения к ASTRA RP. Настроим всё за пару шагов.
+            </p>
+            <button
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={onboardingNext}
+              onmouseenter={playHoverSound}
+            >
+              Начать
+            </button>
+          </div>
+
+        <!-- Шаг 2: Поиск FiveM -->
+        {:else if onboardingStep === 2}
+          <div class="flex flex-col items-center text-center animate-onboarding-step">
+            <!-- Иконка поиска -->
+            <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+              {#if onboardingFivemSearching}
+                <svg class="w-8 h-8 text-[#f64a46] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="9" stroke-dasharray="14 42" stroke-linecap="round"/>
+                </svg>
+              {:else if onboardingFivemResult === 'found'}
+                <svg class="w-8 h-8 text-[#15ff00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              {:else}
+                <svg class="w-8 h-8 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              {/if}
+            </div>
+
+            <h2 class="text-xl text-white mb-2" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.40px;">
+              Поиск FiveM
+            </h2>
+
+            {#if onboardingFivemSearching}
+              <p class="text-sm text-white/40 mb-8" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+                Ищем FiveM на вашем компьютере…
+              </p>
+            {:else if onboardingFivemResult === 'found'}
+              <p class="text-sm text-[#15ff00]/80 mb-2" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+                ✓ FiveM найден автоматически
+              </p>
+              <p class="text-xs text-white/20 mb-8 truncate max-w-xs">{fivemPath}</p>
+              <button
+                class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+                style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+                onclick={onboardingNext}
+                onmouseenter={playHoverSound}
+              >
+                Далее
+              </button>
+            {:else if onboardingFivemResult === 'not_found'}
+              <p class="text-sm text-[#f64a46]/80 mb-6" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+                FiveM не найден на вашем компьютере
+              </p>
+
+              {#if isDownloading}
+                <!-- Прогресс скачивания -->
+                <div class="w-full max-w-xs mb-6">
+                  <p class="text-xs text-white/40 mb-2 text-center">{downloadSize || "Скачивание FiveM…"}</p>
+                  <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-[#f64a46] to-[#ff8c4d] rounded-full transition-all duration-300"
+                         style="width: {downloadPercent}%"></div>
+                  </div>
+                  <p class="text-xs text-white/20 mt-1 text-center">{downloadPercent}%</p>
+                </div>
+              {:else}
+                <!-- Кнопки: скачать / указать путь -->
+                <div class="flex flex-col gap-3 w-full max-w-xs">
+                  <button
+                    class="w-full px-6 py-3 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-sm font-semibold transition-all duration-150"
+                    style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+                    onclick={onboardingDownloadFivem}
+                    onmouseenter={playHoverSound}
+                  >
+                    Скачать FiveM
+                  </button>
+                  <button
+                    class="w-full px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm text-white/50 hover:text-white/70 transition-all border border-white/5"
+                    style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+                    onclick={onboardingSelectFivem}
+                    onmouseenter={playHoverSound}
+                  >
+                    Указать путь вручную
+                  </button>
+                  <button
+                    class="w-full px-6 py-2.5 bg-transparent hover:bg-white/5 rounded-xl text-xs text-white/30 hover:text-white/50 transition-all"
+                    style="font-family: 'Proxima Nova Semibold', sans-serif;"
+                    onclick={onboardingNext}
+                    onmouseenter={playHoverSound}
+                  >
+                    Пропустить →
+                  </button>
+                </div>
+              {/if}
+
+              {#if downloadError}
+                <p class="mt-3 text-xs text-red-400">{downloadError}</p>
+              {/if}
+            {:else}
+              <p class="text-sm text-white/30 mb-8" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+                Проверяем установку…
+              </p>
+            {/if}
+          </div>
+
+        <!-- Шаг 3: Приятной игры! -->
+        {:else if onboardingStep === 3}
+          <div class="flex flex-col items-center text-center animate-onboarding-step">
+            <!-- Иконка ракеты -->
+            <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-[#f64a46]/10 border border-[#f64a46]/20">
+              <svg class="w-8 h-8 text-[#f64a46]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/>
+                <path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/>
+                <path d="M9 12H4s.55-3.03 2-4c1.62-.91 3 0 3 0"/>
+                <path d="M12 15v5s3.03-.55 4-2c.91-1.62 0-3 0-3"/>
+              </svg>
+            </div>
+
+            <h2 class="text-xl text-white mb-2" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.40px;">
+              Почти готово!
+            </h2>
+            <p class="text-sm text-white/40 mb-6" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+              Введите ваш никнейм для сервера
+            </p>
+
+            <!-- Поле ввода никнейма -->
+            <div class="w-full max-w-xs mb-8">
+              <input
+                type="text"
+                class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#f64a46]/50 focus:bg-white/[0.07] transition-all"
+                style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+                placeholder="Ваш никнейм"
+                bind:value={onboardingNickname}
+                maxlength="20"
+                onkeydown={(e) => { if (e.key === 'Enter') onboardingNext(); }}
+              />
+              <p class="text-[10px] text-white/20 mt-2">Можно изменить позже в настройках</p>
+            </div>
+
+            <button
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+              onclick={onboardingNext}
+              onmouseenter={playHoverSound}
+              disabled={onboardingNicknameSaving}
+            >
+              {onboardingNicknameSaving ? "Сохранение…" : "Приятной игры!"}
+            </button>
+          </div>
+        {/if}
+
+        <!-- Индикатор шагов -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
+          {#each [1, 2, 3] as step}
+            <div class="w-2 h-2 rounded-full transition-all duration-300 {onboardingStep === step ? 'bg-[#f64a46] w-6' : onboardingStep > step ? 'bg-[#15ff00]/50' : 'bg-white/10'}"></div>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>

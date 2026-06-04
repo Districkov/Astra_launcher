@@ -5,6 +5,8 @@
   "windows": ["main", "splash"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
     "core:tray:allow-new",
     "core:tray:allow-set-icon",
     "core:tray:allow-set-tooltip",
