@@ -204,6 +204,165 @@ body {
 }
 
 /* ══════════════════════════════════════════════════
+   ✨ ПОЛИРОВКА UI/UX
+   ══════════════════════════════════════════════════ */
+
+/* Кастомный курсор — красная точка */
+.astra-cursor,
+.astra-cursor * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='4' fill='%23f64a46' opacity='0.9'/%3E%3Ccircle cx='10' cy='10' r='8' fill='none' stroke='%23f64a46' stroke-width='1' opacity='0.3'/%3E%3C/svg%3E") 10 10, auto !important;
+}
+
+.astra-cursor button,
+.astra-cursor [role="button"],
+.astra-cursor a,
+.astra-cursor .cursor-pointer {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='5' fill='%23f64a46' opacity='0.9'/%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%23f64a46' stroke-width='1.5' opacity='0.4'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* Staggered fade-in для карточек и элементов */
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-1 { animation: stagger-fade-in 0.4s ease-out 0.05s both; }
+.stagger-2 { animation: stagger-fade-in 0.4s ease-out 0.1s both; }
+.stagger-3 { animation: stagger-fade-in 0.4s ease-out 0.15s both; }
+.stagger-4 { animation: stagger-fade-in 0.4s ease-out 0.2s both; }
+.stagger-5 { animation: stagger-fade-in 0.4s ease-out 0.25s both; }
+
+/* Улучшенный переход страниц — slide + fade */
+@keyframes page-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-page-enter {
+  animation: page-slide-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Ripple-эффект на кнопках */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  top: 50%;
+  left: 50%;
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn-ripple:active::after {
+  animation: ripple 0.5s ease-out;
+}
+
+/* Glow-свечение на hover для кнопок */
+.glow-hover {
+  transition: all 0.2s ease;
+}
+
+.glow-hover:hover {
+  box-shadow: 0 0 15px rgba(246, 74, 70, 0.3), 0 0 30px rgba(246, 74, 70, 0.1);
+}
+
+/* Мягкий bounce при клике */
+@keyframes btn-bounce {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+.btn-bounce:active {
+  animation: btn-bounce 0.15s ease-out;
+}
+
+/* Плавное появление текста */
+@keyframes text-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.text-reveal {
+  animation: text-reveal 0.5s ease-out both;
+}
+
+/* Hover-подсветка для карточек настроек */
+.settings-card {
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-card:hover {
+  border-color: rgba(246, 74, 70, 0.15);
+  box-shadow: 0 0 20px rgba(246, 74, 70, 0.05);
+}
+
+/* Плавный hover для пунктов меню */
+.menu-item {
+  transition: all 0.2s ease;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Анимация индикатора обновления */
+@keyframes update-badge-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+.update-badge-dot {
+  animation: update-badge-pulse 2s ease-in-out infinite;
+}
+
+/* Плавное свечение прогресс-бара */
+.progress-glow {
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+/* ══════════════════════════════════════════════════
    #6 — Анимированный фон (блобы + частицы)
    ══════════════════════════════════════════════════ */
 

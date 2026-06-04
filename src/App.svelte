@@ -776,7 +776,7 @@
 <!-- ── Корневой контейнер ── -->
 <svelte:window onmousemove={handleMouseMove} />
 
-<div class="relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
+<div class="astra-cursor relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 
   <!-- ═══════════════════════════════════════════════
        #6 АНИМИРОВАННЫЙ ФОН (частицы + градиент)
@@ -825,7 +825,7 @@
       onmouseenter={playHoverSound}
       aria-label="Доступно обновление"
     >
-      <div class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+      <div class="w-2 h-2 rounded-full bg-blue-400 update-badge-dot"></div>
       <span class="text-xs text-blue-300">Обновление v{updateInfo.latest_version}</span>
     </button>
   {/if}
@@ -884,7 +884,7 @@
         </p>
         <div class="flex gap-3">
           <button
-            class="flex-1 px-4 py-2.5 rounded-lg bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] text-sm text-white font-medium transition-all"
+            class="flex-1 px-4 py-2.5 rounded-lg bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
             style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
             onclick={(e) => { e.stopPropagation(); playClickSound(); invoke("window_close"); }}
             onmouseenter={playHoverSound}
@@ -892,7 +892,7 @@
             Да, закрыть
           </button>
           <button
-            class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+            class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
             style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
             onclick={(e) => { e.stopPropagation(); playClickSound(); showCloseConfirm = false; }}
             onmouseenter={playHoverSound}
@@ -947,7 +947,7 @@
               <span>{updateDownloadPercent}%</span>
             </div>
             <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: {updateDownloadPercent}%"></div>
+              <div class="h-full bg-blue-500 rounded-full transition-all duration-300 progress-glow" style="width: {updateDownloadPercent}%"></div>
             </div>
             {#if updateDownloaded > 0}
               <p class="text-[10px] text-white/20 mt-1">
@@ -965,7 +965,7 @@
           </div>
           <div class="flex gap-3">
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={installUpdate}
               onmouseenter={playHoverSound}
@@ -973,7 +973,7 @@
               Установить обновление
             </button>
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={closeUpdateModal}
               onmouseenter={playHoverSound}
@@ -985,7 +985,7 @@
           <!-- Кнопка скачивания -->
           <div class="flex gap-3">
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={startUpdateDownload}
               onmouseenter={playHoverSound}
@@ -993,7 +993,7 @@
               Скачать обновление
             </button>
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={closeUpdateModal}
               onmouseenter={playHoverSound}
@@ -1005,7 +1005,7 @@
           <!-- Скачивание в процессе — только отмена -->
           <div class="flex gap-3">
             <button
-              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+              class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={closeUpdateModal}
               onmouseenter={playHoverSound}
@@ -1174,7 +1174,7 @@
         </p>
       </div>
       <button
-        class="px-4 py-1 text-xs text-white/30 hover:text-white/60 hover:bg-white/5 rounded transition-colors"
+        class="px-4 py-1 text-xs text-white/30 hover:text-white/60 hover:bg-white/5 rounded transition-colors btn-ripple"
         onclick={(e) => { e.stopPropagation(); playClickSound(); username = "Player"; addNotification("Вы вышли из аккаунта", "info"); }}
         onmouseenter={playHoverSound}
       >
@@ -1195,10 +1195,10 @@
            СЕКЦИЯ: НАСТРОЙКИ
            ═══════════════════════════════════════ -->
       <div class="w-full max-w-lg px-8 z-10">
-        <h2 class="text-2xl mb-6" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">Настройки</h2>
+        <h2 class="text-2xl mb-6 text-reveal" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">Настройки</h2>
 
         <!-- Путь к FiveM -->
-        <div class="bg-white/5 rounded-lg p-5 mb-4 border border-white/5">
+        <div class="settings-card bg-white/5 rounded-lg p-5 mb-4 stagger-1">
           <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">Путь к FiveM</h3>
           <p class="text-xs text-white/30 mb-3">
             Укажите расположение FiveM.exe, если лаунчер не нашёл его автоматически.
@@ -1208,7 +1208,7 @@
               {fivemPath || "Не найден"}
             </div>
             <button
-              class="px-4 py-2 bg-[#f64a46] hover:bg-[#ff5a56] rounded-lg text-xs font-medium transition-colors"
+              class="px-4 py-2 bg-[#f64a46] hover:bg-[#ff5a56] rounded-lg text-xs font-medium transition-colors btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif;"
               onclick={selectFivemPath}
               onmouseenter={playHoverSound}
@@ -1218,7 +1218,7 @@
           </div>
           <div class="flex items-center gap-2 mt-2">
             <button
-              class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/5 text-white/50 hover:text-white/70"
+              class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/5 text-white/50 hover:text-white/70 btn-ripple"
               style="font-family: 'Proxima Nova Semibold', sans-serif;"
               onclick={autoFindFivem}
               onmouseenter={playHoverSound}
@@ -1234,7 +1234,7 @@
         </div>
 
         <!-- Информация -->
-        <div class="bg-white/5 rounded-lg p-5 border border-white/5">
+        <div class="settings-card bg-white/5 rounded-lg p-5 stagger-2">
           <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">О лаунчере</h3>
           <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || '1.2.0'}</p>
           <p class="text-xs text-white/60 mt-1">Сервер: 185.176.94.21:30120</p>
@@ -1247,7 +1247,7 @@
             <div class="mt-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
               <p class="text-xs text-blue-300 mb-2">🔄 Доступно обновление до v{updateInfo.latest_version}</p>
               <button
-                class="px-4 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs text-blue-200 transition-colors"
+                class="px-4 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs text-blue-200 transition-colors btn-ripple"
                 onclick={openUpdateModal}
                 onmouseenter={playHoverSound}
               >
@@ -1332,7 +1332,7 @@
              bg-[linear-gradient(90deg,rgba(0,0,0,0)_0%,rgba(246,74,70,0.21)_100%)]"></div>
         <!-- Кнопка Играть — pill shape -->
         <button
-          class="play-button absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
+          class="play-button btn-ripple absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
                  hover:bg-[#ff5a56] active:scale-[0.98] transition-all duration-150
                  disabled:opacity-50 disabled:cursor-not-allowed z-30
                  {serverOnline && !isLaunching ? 'play-button-pulse' : ''}"
@@ -1391,7 +1391,7 @@
 
         <button
           class="z-10 px-10 py-3 rounded-xl text-base font-bold tracking-wide
-                 bg-[#f64a46] hover:bg-[#ff5a56]
+                 bg-[#f64a46] hover:bg-[#ff5a56] btn-ripple btn-bounce glow-hover
                  active:scale-95 transition-all duration-150"
           onclick={downloadAndInstall}
           onmouseenter={playHoverSound}
@@ -1401,7 +1401,7 @@
 
         <button
           class="z-10 mt-3 px-6 py-2 rounded-lg text-sm
-                 bg-white/10 hover:bg-white/15 transition-colors"
+                 bg-white/10 hover:bg-white/15 transition-colors btn-ripple"
           onclick={checkFivemAgain}
           onmouseenter={playHoverSound}
         >
@@ -1432,7 +1432,7 @@
             <svg class="w-16 h-16 text-white/30" viewBox="0 0 14 13" fill="currentColor"><path d="M12.66 4.59C11.4 4.59 10.88 3.7 11.51 2.62C11.87 2 11.66 1.2 11.02 0.84L9.81 0.16C9.26 -0.17 8.54 0.03 8.21 0.57L8.14 0.7C7.51 1.78 6.47 1.78 5.84 0.7L5.76 0.57C5.44 0.03 4.73 -0.17 4.18 0.16L2.97 0.84C2.33 1.2 2.11 2 2.48 2.63C3.11 3.7 2.6 4.59 1.33 4.59C0.6 4.59 0 5.17 0 5.89V7.11C0 7.82 0.59 8.41 1.33 8.41C2.6 8.41 3.11 9.3 2.48 10.38C2.11 11 2.33 11.8 2.97 12.16L4.18 12.84C4.73 13.17 5.44 12.97 5.77 12.43L5.85 12.3C6.48 11.22 7.51 11.22 8.15 12.3L8.23 12.43C8.56 12.97 9.27 13.17 9.82 12.84L11.03 12.16C11.67 11.8 11.89 11 11.52 10.38C10.89 9.3 11.4 8.41 12.67 8.41C13.4 8.41 14 7.83 14 7.11V5.89C14 5.18 13.4 4.59 12.66 4.59ZM7 8.74C5.74 8.74 4.72 7.73 4.72 6.5C4.72 5.27 5.74 4.26 7 4.26C8.25 4.26 9.27 5.27 9.27 6.5C9.27 7.73 8.25 8.74 7 8.74Z"/></svg>
           {/if}
         </div>
-        <h2 class="text-xl font-bold mb-2" style="font-family: 'Proxima Nova Bold', sans-serif;">
+        <h2 class="text-xl font-bold mb-2 text-reveal" style="font-family: 'Proxima Nova Bold', sans-serif;">
           {menuItems.find(m => m.id === activeMenu)?.label || "Раздел"}
         </h2>
         <p class="text-sm text-gray-500">Раздел в разработке</p>
@@ -1459,14 +1459,14 @@
               ASTRA
             </div>
             <div class="w-[80px] h-[3px] bg-[#f64a46] rounded-full mb-8"></div>
-            <h1 class="text-2xl text-white mb-3" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">
+            <h1 class="text-2xl text-white mb-3 text-reveal" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">
               Добро пожаловать!
             </h1>
             <p class="text-sm text-white/40 mb-10 max-w-xs" style="font-family: 'Proxima Nova Semibold', sans-serif;">
               Лаунчер для подключения к ASTRA RP. Настроим всё за пару шагов.
             </p>
             <button
-              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={onboardingNext}
               onmouseenter={playHoverSound}
@@ -1505,7 +1505,7 @@
               </p>
               <p class="text-xs text-white/20 mb-8 truncate max-w-xs">{fivemPath}</p>
               <button
-                class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+                class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
                 style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
                 onclick={onboardingNext}
                 onmouseenter={playHoverSound}
@@ -1531,7 +1531,7 @@
                 <!-- Кнопки: скачать / указать путь -->
                 <div class="flex flex-col gap-3 w-full max-w-xs">
                   <button
-                    class="w-full px-6 py-3 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-sm font-semibold transition-all duration-150"
+                    class="w-full px-6 py-3 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-sm font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
                     style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
                     onclick={onboardingDownloadFivem}
                     onmouseenter={playHoverSound}
@@ -1539,7 +1539,7 @@
                     Скачать FiveM
                   </button>
                   <button
-                    class="w-full px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm text-white/50 hover:text-white/70 transition-all border border-white/5"
+                    class="w-full px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm text-white/50 hover:text-white/70 transition-all border border-white/5 btn-ripple"
                     style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
                     onclick={onboardingSelectFivem}
                     onmouseenter={playHoverSound}
@@ -1547,7 +1547,7 @@
                     Указать путь вручную
                   </button>
                   <button
-                    class="w-full px-6 py-2.5 bg-transparent hover:bg-white/5 rounded-xl text-xs text-white/30 hover:text-white/50 transition-all"
+                    class="w-full px-6 py-2.5 bg-transparent hover:bg-white/5 rounded-xl text-xs text-white/30 hover:text-white/50 transition-all btn-ripple"
                     style="font-family: 'Proxima Nova Semibold', sans-serif;"
                     onclick={onboardingNext}
                     onmouseenter={playHoverSound}
@@ -1600,7 +1600,7 @@
             </div>
 
             <button
-              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={onboardingNext}
               onmouseenter={playHoverSound}
@@ -1631,7 +1631,7 @@
             </p>
 
             <button
-              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150"
+              class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
               onclick={onboardingNext}
               onmouseenter={playHoverSound}
