@@ -22,7 +22,13 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-import { SIZES, COLORS, FONTS } from "./constants";
+  import { SIZES, COLORS, FONTS } from "./constants";
+
+  let appWindow;
+  try {
+    appWindow = getCurrentWindow();
+  } catch (e) {
+    // window not available
     appWindow = null;
   }
 
