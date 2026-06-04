@@ -66,7 +66,7 @@
 
   // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.6.1", latest_version: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.6.2", latest_version: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
@@ -113,6 +113,9 @@
   // Параллакс — смещение фона при движении мыши
   let parallaxX = $state(0);
   let parallaxY = $state(0);
+
+  // DPI масштаб для ASTRA текста на 2K/4K
+  let dpiScale = $state(1);
 
   function handleMouseMove(e) {
     const cx = window.innerWidth / 2;
@@ -725,6 +728,9 @@
 
   // ── Инициализация ───────────────────────────────
   onMount(() => {
+    // Вычисляем DPI масштаб на основе device pixel ratio
+    dpiScale = window.devicePixelRatio || 1;
+
     initParticles();
     setTimeout(() => { launcherReady = true; }, 100);
 
@@ -1037,10 +1043,10 @@
        style="transform: translate({parallaxX * 0.8}px, {parallaxY * 0.8}px);" aria-hidden="true" />
 
   <!-- Большой текст ASTRA на фоне -->
-  <div class="pointer-events-none select-none flex transition-transform duration-300 ease-out"
-       style="position: absolute; top: 18%; left: 24%; transform: translate({parallaxX * 1}px, {parallaxY * 1}px);">
+  <div class="pointer-events-none select-none"
+       style="position: absolute; top: {108 / dpiScale}px; left: {230 / dpiScale}px;">
     <div class="pointer-events-none select-none"
-         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(200px, 29.17vw, 400px); font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: clamp(-10px, -0.83vw, -6px); line-height: normal; white-space: nowrap;">
+         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: {280 / dpiScale}px; font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: {-8 / dpiScale}px; line-height: normal; white-space: nowrap;">
       ASTRA
     </div>
   </div>
