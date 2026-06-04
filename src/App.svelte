@@ -1262,7 +1262,7 @@
       {#if launchPhase > 0}
         <div class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
           <!-- ASTRA логотип -->
-          <div class="mb-6 text-4xl text-white tracking-wider" style="font-family: 'Armor Piercing 2.0 BB', sans-serif; text-shadow: 0 0 40px rgba(246,74,70,0.5);">
+          <div class="mb-6 text-white tracking-wider" style="font-family: 'Armor Piercing 2.0 BB', sans-serif; text-shadow: 0 0 40px rgba(246,74,70,0.5); font-size: clamp(32px, 4.2vw, 40px);">
             ASTRA
           </div>
 
