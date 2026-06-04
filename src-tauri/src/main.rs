@@ -717,6 +717,7 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
         .trim_start_matches('v');
 
     // Ищем .exe установщик (NSIS) среди assets
+    // Формат имени: ASTRA.Launcher_X.Y.Z_x64-setup.exe или ASTRA Launcher_X.Y.Z_x64-setup.exe
     let download_url = release
         .get("assets")
         .and_then(|a| a.as_array())
@@ -724,7 +725,9 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
             assets.iter().find(|asset| {
                 asset.get("name")
                     .and_then(|n| n.as_str())
-                    .map(|name| name.ends_with("-setup.exe"))
+                    .map(|name| {
+                        name.ends_with("-setup.exe") || name.ends_with("_setup.exe") || (name.contains("setup") && name.ends_with(".exe"))
+                    })
                     .unwrap_or(false)
             })
         })
@@ -739,7 +742,19 @@ async fn check_for_updates() -> Result<serde_json::Value, String> {
         .unwrap_or("")
         .to_string();
 
-    let update_available = latest_tag != LAUNCHER_VERSION;
+    // Сравнение версий: парсим major.minor.patch
+    let update_available = {
+        let cur: Vec<u32> = LAUNCHER_VERSION.split('.').filter_map(|s| s.parse().ok()).collect();
+        let lat: Vec<u32> = latest_tag.split('.').filter_map(|s| s.parse().ok()).collect();
+        // Сравниваем численно: latest > current → обновление доступно
+        let lat_major = lat.get(0).copied().unwrap_or(0);
+        let lat_minor = lat.get(1).copied().unwrap_or(0);
+        let lat_patch = lat.get(2).copied().unwrap_or(0);
+        let cur_major = cur.get(0).copied().unwrap_or(0);
+        let cur_minor = cur.get(1).copied().unwrap_or(0);
+        let cur_patch = cur.get(2).copied().unwrap_or(0);
+        (lat_major, lat_minor, lat_patch) > (cur_major, cur_minor, cur_patch)
+    };
 
     Ok(serde_json::json!({
         "update_available": update_available,
