@@ -1074,8 +1074,8 @@
     <!-- Логотип ASTRA (drag-зона) -->
     <div data-tauri-drag-region role="none" class="pt-[26px] pl-[44px] cursor-default"
          onmousedown={() => { if (appWindow) appWindow.startDragging(); }}>
-      <div class="text-white tracking-[-0.8px] leading-none"
-           style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 3.8vw;">
+       <div class="text-white tracking-[-0.8px] leading-none"
+         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(32px, 4.2vw, 40px);">
         ASTRA
       </div>
       <!-- Красная полоска под логотипом -->
