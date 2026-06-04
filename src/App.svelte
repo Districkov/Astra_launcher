@@ -226,7 +226,8 @@
         addNotification(`🔄 Доступно обновление: v${info.latest_version}`, "update");
       }
     } catch (e) {
-      // update check failed
+      // Ошибка проверки — не показываем пользователю, просто помечаем
+      console.warn("Проверка обновлений не удалась:", e);
       updateChecked = true;
     }
   }
@@ -923,19 +924,26 @@
         <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
           🔄 Доступно обновление
         </h3>
-        <p class="text-sm text-white/40 mb-4 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+        <p class="text-sm text-white/60 mb-4 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
           v{updateInfo.current_version} → v{updateInfo.latest_version}
         </p>
 
         {#if updateInfo.release_notes}
           <div class="mb-4 p-3 rounded-lg bg-white/5 border border-white/5 max-h-[120px] overflow-y-auto">
-            <p class="text-xs text-white/50 whitespace-pre-wrap">{updateInfo.release_notes}</p>
+            <p class="text-xs text-white/70 whitespace-pre-wrap">{updateInfo.release_notes}</p>
           </div>
         {/if}
 
         {#if updateError}
           <div class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-            <p class="text-xs text-red-300">❌ {updateError}</p>
+            <p class="text-xs text-red-300">❌ Ошибка скачивания: {updateError}</p>
+            <button
+              class="mt-2 px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 rounded text-xs text-blue-300 transition-colors"
+              onclick={() => { updateError = ""; startUpdateDownload(); }}
+              onmouseenter={playHoverSound}
+            >
+              Повторить
+            </button>
           </div>
         {/if}
 
@@ -950,7 +958,7 @@
               <div class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: {updateDownloadPercent}%"></div>
             </div>
             {#if updateDownloaded > 0}
-              <p class="text-[10px] text-white/20 mt-1">
+              <p class="text-[10px] text-white/40 mt-1">
                 {(updateDownloaded / 1048576).toFixed(1)} МБ{updateTotal > 0 ? ` / ${(updateTotal / 1048576).toFixed(1)} МБ` : ''}
               </p>
             {/if}
@@ -1236,8 +1244,8 @@
         <!-- Информация -->
         <div class="bg-white/5 rounded-lg p-5 border border-white/5">
           <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">О лаунчере</h3>
-          <p class="text-xs text-white/30">ASTRA Launcher v{updateInfo.current_version || '1.0.0'}</p>
-          <p class="text-xs text-white/30 mt-1">Сервер: 185.176.94.21:30120</p>
+          <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || '1.2.0'}</p>
+          <p class="text-xs text-white/60 mt-1">Сервер: 185.176.94.21:30120</p>
           {#if serverOnline}
             <p class="text-xs text-[#15ff00]/70 mt-1">Сервер онлайн — {serverPlayers}/{serverMaxPlayers}</p>
           {:else}
