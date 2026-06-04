@@ -66,7 +66,7 @@
 
   // #5 — Автообновление
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.2.0", latest_version: "", download_url: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.3.0", latest_version: "", download_url: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);
@@ -1236,7 +1236,7 @@
         <!-- Информация -->
         <div class="settings-card bg-white/5 rounded-lg p-5 stagger-2">
           <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">О лаунчере</h3>
-          <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || '1.2.0'}</p>
+          <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || '1.3.0'}</p>
           <p class="text-xs text-white/60 mt-1">Сервер: 185.176.94.21:30120</p>
           {#if serverOnline}
             <p class="text-xs text-[#15ff00]/80 mt-1">Сервер онлайн — {serverPlayers}/{serverMaxPlayers}</p>
