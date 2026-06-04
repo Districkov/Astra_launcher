@@ -1,6 +1,6 @@
 [package]
 name = "astra-launcher"
-version = "1.3.0"
+version = "1.6.6"
 description = "ASTRA — лаунчер для FiveM-сервера"
 authors = ["ASTRA Team"]
 license = "MIT"

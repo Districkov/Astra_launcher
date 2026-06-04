@@ -22,12 +22,7 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-
-  let appWindow;
-  try {
-    appWindow = getCurrentWindow();
-  } catch (e) {
-    // window not available
+import { SIZES, COLORS, FONTS } from "./constants";
     appWindow = null;
   }
 
@@ -82,9 +77,6 @@
 
   // #9 — Имя пользователя
   let username = $state("Player");
-
-  // #10 — Анимация переходов
-  let pageTransition = $state("fade-in");
 
   // #11 — Звуки кликов и наведения
   let clickSound = null;
@@ -887,10 +879,10 @@
        МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКРЫТИЯ
        ═══════════════════════════════════════════════ -->
   {#if showCloseConfirm}
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onclick={() => { showCloseConfirm = false; }}>
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-xs w-full shadow-2xl" onclick={(e) => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" role="presentation" onclick={() => { showCloseConfirm = false; }}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div role="dialog" tabindex="0" aria-labelledby="close-dialog-title" aria-modal="true" class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-xs w-full shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === "Escape") showCloseConfirm = false; }}>
         <!-- Логотип ASTRA + красная полоска -->
         <div class="text-center mb-5">
           <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
@@ -898,7 +890,7 @@
           </div>
           <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-[#f64a46] rounded-full"></div>
         </div>
-        <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
+        <h3 id="close-dialog-title" class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
           Закрыть лаунчер?
         </h3>
         <p class="text-sm text-white/30 mb-5 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
@@ -930,10 +922,10 @@
        МОДАЛКА ОБНОВЛЕНИЯ
        ═══════════════════════════════════════════════ -->
   {#if showUpdateModal}
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onclick={closeUpdateModal}>
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div role="dialog" class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl" onclick={(e) => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" role="presentation" onclick={closeUpdateModal}>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div role="dialog" tabindex="0" aria-labelledby="update-dialog-title" aria-modal="true" class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === "Escape") closeUpdateModal(); }}>
         <!-- Логотип ASTRA -->
         <div class="text-center mb-4">
           <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
@@ -942,7 +934,7 @@
           <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-[#f64a46] rounded-full"></div>
         </div>
 
-        <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
+        <h3 id="update-dialog-title" class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
           🔄 Доступно обновление
         </h3>
         <p class="text-sm text-white/40 mb-4 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
