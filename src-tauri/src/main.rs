@@ -234,6 +234,22 @@ fn set_fivem_path(path: String) -> Result<(), String> {
         .map_err(|e| format!("Ошибка сохранения: {}", e))
 }
 
+/// Автоматический поиск FiveM.exe — ищет и сохраняет путь, если найден
+#[command]
+fn auto_find_fivem() -> Result<Option<String>, String> {
+    match find_fivem_exe() {
+        Some(path) => {
+            let path_str = path.to_string_lossy().to_string();
+            let settings = serde_json::json!({
+                "fivem_path": &path_str
+            });
+            let _ = fs::write(settings_path(), serde_json::to_string_pretty(&settings).unwrap());
+            Ok(Some(path_str))
+        }
+        None => Ok(None),
+    }
+}
+
 /// Запускает FiveM и подключается к серверу.
 /// Запускает FiveM.exe через cmd /c start — FiveM увидит explorer как родителя
 /// (cmd /c start открывает процесс через ShellExecuteEx, как если бы кликнули в проводнике)
@@ -1061,6 +1077,7 @@ fn main() {
             check_fivem_installed,
             get_fivem_path,
             set_fivem_path,
+            auto_find_fivem,
             download_fivem,
             launch_fivem_installer,
             show_main_window,

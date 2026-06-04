@@ -90,6 +90,22 @@
   // #13 — Discord Rich Presence (флаг)
   let discordRpcActive = $state(false);
 
+  let showCloseConfirm = $state(false);
+
+  // Анимация появления лаунчера
+  let launcherReady = $state(false);
+
+  // Параллакс — смещение фона при движении мыши
+  let parallaxX = $state(0);
+  let parallaxY = $state(0);
+
+  function handleMouseMove(e) {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    parallaxX = ((e.clientX - cx) / cx) * 12;
+    parallaxY = ((e.clientY - cy) / cy) * 8;
+  }
+
   // Частицы — позиции кэшируются один раз
   let particleStyles = $state([]);
   function initParticles() {
@@ -255,6 +271,25 @@
     }
   }
 
+  async function autoFindFivem() {
+    playClickSound();
+    try {
+      const path = await invoke("auto_find_fivem");
+      if (path) {
+        fivemPath = path;
+        fivemFound = true;
+        statusMessage = "FiveM найден автоматически ✓";
+        setTimeout(() => { statusMessage = ""; }, 3000);
+      } else {
+        statusMessage = "FiveM не найден автоматически";
+        setTimeout(() => { statusMessage = ""; }, 3000);
+      }
+    } catch (e) {
+      statusMessage = "Автопоиск недоступен";
+      setTimeout(() => { statusMessage = ""; }, 3000);
+    }
+  }
+
   async function selectFivemPath() {
     playClickSound();
     try {
@@ -416,14 +451,7 @@
       const unlisten = await listen("download-progress", (event) => {
         const { downloaded, total, percent } = event.payload;
         downloadPercent = percent;
-        const fmt = (b) => {
-          if (b === 0) return "0 Б";
-          const k = 1024;
-          const s = ["Б", "КБ", "МБ", "ГБ"];
-          const i = Math.floor(Math.log(b) / Math.log(k));
-          return (b / Math.pow(k, i)).toFixed(1) + " " + s[i];
-        };
-        downloadSize = total > 0 ? `${fmt(downloaded)} / ${fmt(total)}` : fmt(downloaded);
+        downloadSize = total > 0 ? `${fmtSize(downloaded)} / ${fmtSize(total)}` : fmtSize(downloaded);
       });
       await invoke("download_fivem");
       unlisten();
@@ -513,6 +541,7 @@
   // ── Инициализация ───────────────────────────────
   onMount(() => {
     initParticles();
+    setTimeout(() => { launcherReady = true; }, 100);
 
     // #11 — Инициализация звуков через AudioContext
     try {
@@ -554,6 +583,7 @@
 
     loadServerStatus();
     loadFivemPath();
+    autoFindFivem();
     loadUsername();
     loadServerPing();
     checkUpdates();
@@ -574,14 +604,15 @@
 </script>
 
 <!-- ── Корневой контейнер ── -->
-<svelte:window onmousedown={startDrag} />
+<svelte:window onmousedown={startDrag} onmousemove={handleMouseMove} />
 
-<div class="relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none">
+<div class="relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 
   <!-- ═══════════════════════════════════════════════
        #6 АНИМИРОВАННЫЙ ФОН (частицы + градиент)
        ═══════════════════════════════════════════════ -->
-  <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+  <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 0.3}px, {parallaxY * 0.3}px);">
     <!-- Плавающие градиентные блобы -->
     <div class="animated-blob blob-1"></div>
     <div class="animated-blob blob-2"></div>
@@ -643,7 +674,7 @@
     </button>
     <button
       class="w-10 h-8 flex items-center justify-center text-white/40 hover:text-[#f64a46] hover:bg-white/10 transition-colors"
-      onclick={(e) => { e.stopPropagation(); invoke("window_close"); }}
+      onclick={(e) => { e.stopPropagation(); playClickSound(); showCloseConfirm = true; }}
       onmouseenter={playHoverSound}
       title="Закрыть"
     >
@@ -652,11 +683,55 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════
+       МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКРЫТИЯ
+       ═══════════════════════════════════════════════ -->
+  {#if showCloseConfirm}
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onclick={() => { showCloseConfirm = false; }}>
+      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+      <div class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-xs w-full shadow-2xl" onclick={(e) => e.stopPropagation()}>
+        <!-- Логотип ASTRA + красная полоска -->
+        <div class="text-center mb-5">
+          <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
+            ASTRA
+          </div>
+          <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-[#f64a46] rounded-full"></div>
+        </div>
+        <h3 class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
+          Закрыть лаунчер?
+        </h3>
+        <p class="text-sm text-white/30 mb-5 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
+          Серверный кеш и прогресс сохранены
+        </p>
+        <div class="flex gap-3">
+          <button
+            class="flex-1 px-4 py-2.5 rounded-lg bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] text-sm text-white font-medium transition-all"
+            style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+            onclick={(e) => { e.stopPropagation(); playClickSound(); invoke("window_close"); }}
+            onmouseenter={playHoverSound}
+          >
+            Да, закрыть
+          </button>
+          <button
+            class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5"
+            style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+            onclick={(e) => { e.stopPropagation(); playClickSound(); showCloseConfirm = false; }}
+            onmouseenter={playHoverSound}
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ═══════════════════════════════════════════════
        ФОН: Декоративные элементы (из assets)
        ═══════════════════════════════════════════════ -->
 
   <!-- Subtract1 — красная подсветка справа сверху -->
-  <svg class="absolute top-0 left-[504px] w-[456px] h-[400px] pointer-events-none select-none z-[6]" viewBox="0 0 456 400" fill="none">
+  <svg class="absolute top-0 left-[504px] w-[456px] h-[400px] pointer-events-none select-none z-[6] transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 0.6}px, {parallaxY * 0.6}px);" viewBox="0 0 456 400" fill="none">
     <defs><filter id="glow1" x="-200" y="-200" width="900" height="900" filterUnits="userSpaceOnUse">
       <feGaussianBlur stdDeviation="100"/><feComposite in2="hardAlpha" operator="out"/>
       <feColorMatrix type="matrix" values="0 0 0 0 0.965 0 0 0 0 0.29 0 0 0 0 0.275 0 0 0 1 0"/>
@@ -666,7 +741,8 @@
   </svg>
 
   <!-- Subtract — красная подсветка слева снизу -->
-  <svg class="absolute top-[282px] left-0 w-[642px] h-[358px] pointer-events-none select-none z-[6]" viewBox="0 0 647 386" fill="none">
+  <svg class="absolute top-[282px] left-0 w-[642px] h-[358px] pointer-events-none select-none z-[6] transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 0.5}px, {parallaxY * 0.5}px);" viewBox="0 0 647 386" fill="none">
     <defs><filter id="glow2" x="-200" y="-200" width="1100" height="900" filterUnits="userSpaceOnUse">
       <feGaussianBlur stdDeviation="100"/><feComposite in2="hardAlpha" operator="out"/>
       <feColorMatrix type="matrix" values="0 0 0 0 0.965 0 0 0 0 0.29 0 0 0 0 0.275 0 0 0 1 0"/>
@@ -676,10 +752,12 @@
   </svg>
 
   <!-- GTAV персонаж — выше текста ASTRA и звёзд, но ниже кнопки играть -->
-  <img src="/GTAV-33-4.png.png" alt="" class="absolute top-4 left-[16.5%] w-[83.5%] h-[104%] object-cover pointer-events-none select-none z-[5]" aria-hidden="true" />
+  <img src="/GTAV-33-4.png.png" alt="" class="absolute top-4 left-[16.5%] w-[83.5%] h-[104%] object-cover pointer-events-none select-none z-[5] transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 0.8}px, {parallaxY * 0.8}px);" aria-hidden="true" />
 
   <!-- Большой текст ASTRA на фоне -->
-  <div class="absolute top-[108px] left-[230px] pointer-events-none select-none flex">
+  <div class="absolute top-[18%] left-[24%] pointer-events-none select-none flex transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 1}px, {parallaxY * 1}px);">
     <div class="pointer-events-none select-none"
          style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: clamp(280px, 41.7vw, 400px); font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: -8px; line-height: normal; white-space: nowrap;">
       ASTRA
@@ -687,12 +765,14 @@
   </div>
 
   <!-- Star 23 — звезда справа снизу -->
-  <svg class="absolute top-[410px] left-[702px] w-[258px] h-[230px] pointer-events-none select-none" viewBox="0 0 259 230" fill="none">
+  <svg class="absolute top-[410px] left-[702px] w-[258px] h-[230px] pointer-events-none select-none transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 1.2}px, {parallaxY * 1.2}px);" viewBox="0 0 259 230" fill="none">
     <path d="M95.1 301.5C94.06 325 123.66 336.1 138.3 317.7L182.8 261.8C189.2 253.8 200.1 250.8 209.7 254.4L276.6 279.5C298.6 287.7 318.3 263 305.4 243.4L266 183.8C260.3 175.2 260.8 164 267.2 155.9L311.8 100C326.4 81.7 309 55.3 286.3 61.5L217.5 80.6C207.5 83.3 197 79.4 191.3 70.8L151.9 11.2C139 -8.4 108.5 0 107.5 23.5L104.3 94.8C103.8 105.1 96.8 113.9 86.9 116.7L18 135.7C-4.6 142 -6 173.5 16 181.8L82.9 206.9C92.5 210.5 98.7 219.9 98.3 230.2L95.1 301.5Z" stroke="white" stroke-opacity="0.3" stroke-width="0.5"/>
   </svg>
 
   <!-- Star 24 — звезда сверху -->
-  <svg class="absolute top-0 left-[106px] w-[323px] h-[156px] pointer-events-none select-none" viewBox="0 0 324 157" fill="none">
+  <svg class="absolute top-0 left-[106px] w-[323px] h-[156px] pointer-events-none select-none transition-transform duration-300 ease-out"
+       style="transform: translate({parallaxX * 1.4}px, {parallaxY * 1.4}px);" viewBox="0 0 324 157" fill="none">
     <path d="M201.2 148.6C217.6 165.4 246 151.5 242.6 128.2L232.5 57.5C231 47.3 236.2 37.3 245.5 32.8L309.6 1.3C330.6 -9.1 326.1 -40.4 303 -44.4L232.6 -56.6C222.5 -58.3 214.6 -66.4 213.1 -76.6L202.9 -147.3C199.6 -170.5 168.5 -175.9 157.5 -155.1L124.2 -91.9C119.4 -82.8 109.3 -77.9 99.1 -79.6L28.7 -91.8C5.6 -95.8 -9.2 -67.8 7.2 -51L57 0.2C64.2 7.6 65.8 18.8 61 27.9L27.7 91.1C16.7 111.9 38.7 134.5 59.8 124.1L123.9 92.6C133.2 88.1 144.3 90 151.4 97.4L201.2 148.6Z" stroke="white" stroke-opacity="0.3" stroke-width="0.5"/>
   </svg>
 
@@ -720,7 +800,10 @@
         <div class="w-3 h-3 rounded-md bg-yellow-500/20 flex items-center justify-center">
           <div class="w-2 h-2 rounded bg-yellow-500 animate-pulse"></div>
         </div>
-        <span class="text-sm text-white/30">Загрузка…</span>
+        <div class="flex flex-col gap-1.5">
+          <div class="w-14 h-2.5 rounded bg-white/10 animate-skeleton"></div>
+          <div class="w-8 h-2 rounded bg-white/5 animate-skeleton"></div>
+        </div>
       {:else if serverOnline}
         <div class="w-3 h-3 rounded-md bg-green-500/20 flex items-center justify-center">
           <div class="w-2 h-2 rounded bg-[#15ff00]"></div>
@@ -759,8 +842,8 @@
           <div class="my-3"></div>
         {/if}
         <button
-          class="w-full flex items-center gap-3 pl-[34px] h-[42px] text-[15px] transition-colors duration-150 relative
-            {activeMenu === item.id ? 'text-white' : 'text-white/30 hover:text-white/60'}"
+          class="menu-item w-full flex items-center gap-3 pl-[34px] h-[42px] text-[15px] transition-colors duration-150 relative
+            {activeMenu === item.id ? 'text-white menu-item-active' : 'text-white/30 hover:text-white/60 menu-item-hover'}"
           style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600; letter-spacing: -0.30px;
             {activeMenu === item.id ? 'background: linear-gradient(90deg, rgba(246,74,70,0.5) 0%, rgba(0,0,0,0.1) 100%)' : ''}"
           onclick={() => selectMenu(item.id)}
@@ -808,9 +891,9 @@
   <!-- ═══════════════════════════════════════════════
        ОСНОВНАЯ ОБЛАСТЬ (Main Area)
        ═══════════════════════════════════════════════ -->
-  <main class="absolute top-0 left-[157px] right-0 bottom-0 flex flex-col items-center justify-center z-10">
+  <main class="absolute top-0 left-[157px] right-0 bottom-0 flex flex-col items-center justify-center z-10 overflow-hidden">
     {#key activeMenu}
-    <div class="flex flex-col items-center justify-center w-full h-full page-transition-enter">
+    <div class="flex flex-col items-center justify-center w-full h-full animate-page-enter">
 
     {#if activeMenu === "settings"}
       <!-- ═══════════════════════════════════════
@@ -836,6 +919,16 @@
               onmouseenter={playHoverSound}
             >
               Выбрать
+            </button>
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <button
+              class="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-medium transition-colors border border-white/5 text-white/50 hover:text-white/70"
+              style="font-family: 'Proxima Nova Semibold', sans-serif;"
+              onclick={autoFindFivem}
+              onmouseenter={playHoverSound}
+            >
+              Найти автоматически
             </button>
           </div>
           {#if fivemFound}
@@ -944,9 +1037,11 @@
              bg-[linear-gradient(90deg,rgba(0,0,0,0)_0%,rgba(246,74,70,0.21)_100%)]"></div>
         <!-- Кнопка Играть — pill shape -->
         <button
-          class="absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
+          class="play-button absolute bottom-[42px] right-0 w-[210px] h-[70px] bg-[#f64a46] rounded-[1000px_0px_0px_1000px] cursor-pointer
                  hover:bg-[#ff5a56] active:scale-[0.98] transition-all duration-150
-                 disabled:opacity-50 disabled:cursor-not-allowed z-30"
+                 disabled:opacity-50 disabled:cursor-not-allowed z-30
+                 {serverOnline && !isLaunching ? 'play-button-pulse' : ''}"
+          style="{serverOnline && !isLaunching ? 'box-shadow: 0 0 0 0 rgba(246,74,70,0.4);' : ''}"
           onclick={handlePlay}
           onmouseenter={playHoverSound}
           disabled={isLaunching}

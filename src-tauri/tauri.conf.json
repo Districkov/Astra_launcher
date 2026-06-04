@@ -40,7 +40,8 @@
         "fullscreen": false,
         "decorations": false,
         "center": true,
-        "visible": false
+        "visible": false,
+        "devtools": true
       }
     ]
   },
