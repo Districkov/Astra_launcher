@@ -66,7 +66,7 @@
 
   // #5 — Автообновление
   let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "1.1.0", latest_version: "", download_url: "", release_notes: "" });
+  let updateInfo = $state({ current_version: "1.2.0", latest_version: "", download_url: "", release_notes: "" });
   let updateChecked = $state(false);
   let updateDownloading = $state(false);
   let updateDownloadPercent = $state(0);

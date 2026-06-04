@@ -677,7 +677,7 @@ fn close_embedded_webview(window: tauri::Window) -> Result<(), String> {
 /// ─────────────────────────────────────────────
 
 /// Текущая версия лаунчера (должна совпадать с Cargo.toml)
-const LAUNCHER_VERSION: &str = "1.1.0";
+const LAUNCHER_VERSION: &str = "1.2.0";
 
 /// URL для проверки обновлений (GitHub releases API)
 const UPDATE_CHECK_URL: &str = "https://api.github.com/repos/Districkov/Astra_launcher/releases/latest";
