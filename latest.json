@@ -1,11 +1,11 @@
 {
-  "version": "1.6.5",
-  "notes": "ASTRA v1.6.5 - Embedded fonts",
-  "pub_date": "2026-06-04T21:10:00Z",
+  "version": "1.6.6",
+  "notes": "ASTRA v1.6.6 - Harmonized ASTRA sizes",
+  "pub_date": "2026-06-05T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL3VuUnVSNHZJMHUrazRMcHA2T3RRdVR5WTVTMzJrZ3V5WnVUOFRUejNVRzNjV0tkNGQ3RTB4OW55bGt4bTU4STdsWmlmN3ZSN24xSnBoLzNoVFVRSmxvQUN6WGJvVlE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjA2MDIyCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS42LjVfeDY0LXNldHVwLmV4ZQpZVUwwQ0d4d00zdmhvNUxtVGJ3M2szL2pRdVZTQ2FmWU90NC8xOXY4NHlQeTBpUW9Sd3NXbEVDczlLaU4xcnlnQ1htT25hSkhGWmd3ZmVsL09MVlFDQT09Cg==",
-      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.5/ASTRA.Launcher_1.6.5_x64-setup.exe"
+      "signature": "",
+      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.6/ASTRA.Launcher_1.6.6_x64-setup.exe"
     }
   }
 }
