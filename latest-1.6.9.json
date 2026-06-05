@@ -1,0 +1,11 @@
+{
+  "version": "1.6.9",
+  "notes": "Release v1.6.9: auto-update test release",
+  "pub_date": "2026-06-06T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYjBvQXdyOStBYTRzcklQVjh5aXZ2NmQvMGNBcU1qZGhiYnRQL0lyZzVzZmZkWk5NRXFRUEJURTRmWHJuSkE5TnB4QUQ0VmFDUmtuT2JLWEF5UnNSK3d3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjk1Mzc4CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS42LjlfeDY0LXNldHVwLmV4ZQovMWJKNFR0aGtKZUpzVkc4aVplMjd2U1ljaTA4RzFHdi90dmlIN2l1UTlOSWJDMmhHWnBrMkRiUU1hR2xCb0hZZ1hMODd2MEZVM1VSbkZKQmZRQTVCUT09Cg==",
+      "url": "https://github.com/Districkov/Astra_launcher/releases/download/v1.6.9/ASTRA.Launcher_1.6.9_x64-setup.exe"
+    }
+  }
+}
