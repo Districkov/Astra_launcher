@@ -22,8 +22,38 @@ use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
+/// ─────────────────────────────────────────────
+/// 📝 ЛОГИРОВАНИЕ В ФАЙЛ
+/// ─────────────────────────────────────────────
+
+/// Простой логгер: пишет в %APPDATA%/astra-launcher/launcher.log
+fn log_to_file(level: &str, msg: &str) {
+    let log_path = launcher_data_dir().join("launcher.log");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    let line = format!("[{} {}] {}\n", timestamp, level, msg);
+    let _ = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .and_then(|mut f| f.write_all(line.as_bytes()));
+}
+
+/// Макросы для удобного логирования
+macro_rules! log_info  { ($($arg:tt)*) => { crate::log_to_file("INFO",  &format!($($arg)*)) } }
+#[allow(unused_macros)]
+macro_rules! log_warn  { ($($arg:tt)*) => { crate::log_to_file("WARN",  &format!($($arg)*)) } }
+macro_rules! log_error { ($($arg:tt)*) => { crate::log_to_file("ERROR", &format!($($arg)*)) } }
+
 /// Глобальное состояние Discord RPC
 static DISCORD_RPC: once_cell::sync::Lazy<Mutex<Option<DiscordIpcClient>>> = once_cell::sync::Lazy::new(|| Mutex::new(None));
+
+/// Глобальный HTTP-клиент (переиспользуется во всех командах)
+static HTTP_CLIENT: once_cell::sync::Lazy<reqwest::Client> = once_cell::sync::Lazy::new(|| {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("Failed to create HTTP client")
+});
 
 /// ─────────────────────────────────────────────
 /// 🔧 КОНФИГУРАЦИЯ
@@ -283,12 +313,25 @@ fn get_fivem_path() -> Result<String, String> {
 }
 
 /// Сохраняет пользовательский путь к FiveM.exe
+/// Читает существующий settings.json и обновляет только поле fivem_path
 #[command]
 fn set_fivem_path(path: String) -> Result<(), String> {
-    let settings = serde_json::json!({
-        "fivem_path": path
-    });
-    fs::write(settings_path(), serde_json::to_string_pretty(&settings).unwrap())
+    let sp = settings_path();
+
+    // Читаем существующий конфиг или создаём пустой
+    let mut settings: serde_json::Value = if sp.exists() {
+        fs::read_to_string(&sp)
+            .ok()
+            .and_then(|data| serde_json::from_str(&data).ok())
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // Обновляем только fivem_path
+    settings["fivem_path"] = serde_json::Value::String(path);
+
+    fs::write(&sp, serde_json::to_string_pretty(&settings).unwrap())
         .map_err(|e| format!("Ошибка сохранения: {}", e))
 }
 
@@ -353,6 +396,7 @@ fn launch_game() -> Result<String, String> {
 
 #[command]
 async fn download_fivem(window: tauri::Window) -> Result<String, String> {
+    log_info!("download_fivem: начало скачивания");
     let dest = fivem_installer_path();
 
     // Если установщик уже скачан — не скачиваем повторно
@@ -367,7 +411,7 @@ async fn download_fivem(window: tauri::Window) -> Result<String, String> {
         let _ = fs::remove_file(&dest);
     }
 
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let response = client
         .get(&CONFIG.fivem_download_url)
         .send()
@@ -417,15 +461,20 @@ async fn download_fivem(window: tauri::Window) -> Result<String, String> {
 /// Запускает скачанный установщик FiveM БЕЗ ожидания.
 #[command]
 fn launch_fivem_installer() -> Result<String, String> {
+    log_info!("launch_fivem_installer: запуск установщика");
     let installer = fivem_installer_path();
 
     if !installer.exists() {
+        log_error!("Установщик не найден: {:?}", installer);
         return Err("Установщик не найден. Скачайте FiveM сначала.".to_string());
     }
 
     std::process::Command::new(installer.as_os_str())
         .spawn()
-        .map_err(|e| format!("Не удалось запустить установщик: {}", e))?;
+        .map_err(|e| {
+            log_error!("Не удалось запустить установщик: {}", e);
+            format!("Не удалось запустить установщик: {}", e)
+        })?;
 
     Ok("Установщик запущен".to_string())
 }
@@ -437,7 +486,8 @@ fn launch_fivem_installer() -> Result<String, String> {
 /// Получает статус сервера через /info.json и /players.json
 #[command]
 async fn get_server_status() -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    log_info!("get_server_status: запрос статуса сервера");
+    let client = &*HTTP_CLIENT;
 
     // Запрашиваем info.json
     let info = match client
@@ -542,6 +592,7 @@ fn check_precache_needed() -> Result<serde_json::Value, String> {
 /// Скачивает и распаковывает кеш сервера с прогрессом
 #[command]
 async fn precache_server_files(window: tauri::Window) -> Result<serde_json::Value, String> {
+    log_info!("precache_server_files: начало предзагрузки кеша");
     let cache_dir = fivem_server_cache_dir()
         .ok_or("Не удалось найти папку кеша FiveM")?;
 
@@ -553,7 +604,7 @@ async fn precache_server_files(window: tauri::Window) -> Result<serde_json::Valu
     let zip_path = launcher_data_dir().join("precache.zip");
 
     // Скачиваем ZIP с прогрессом
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let response = client
         .get(&CONFIG.precache_url)
         .timeout(std::time::Duration::from_secs(300)) // 5 мин на скачивание
@@ -684,6 +735,7 @@ fn show_main_window(window: tauri::Window) -> Result<(), String> {
 /// Создаёт встроенный webview внутри главного окна для отображения Telegram
 #[command]
 async fn create_embedded_webview(url: String, window: tauri::Window) -> Result<(), String> {
+    log_info!("create_embedded_webview: URL={}", url);
     let app = window.app_handle();
 
     // Проверяем, не существует ли уже webview с этой меткой
@@ -695,6 +747,13 @@ async fn create_embedded_webview(url: String, window: tauri::Window) -> Result<(
     let parsed_url: url::Url = url
         .parse()
         .map_err(|e: url::ParseError| format!("Некорректный URL: {}", e))?;
+
+    // Валидация: разрешаем только t.me и telegram.org
+    let host = parsed_url.host_str().unwrap_or("");
+    let allowed_hosts = ["t.me", "www.t.me", "telegram.org", "web.telegram.org", "oauth.telegram.org"];
+    if !allowed_hosts.iter().any(|&h| host == h || host.ends_with(&format!(".{}", h))) {
+        return Err(format!("URL не разрешён: {}. Допускаются только t.me и telegram.org", host));
+    }
 
     // Получаем нативное окно (не WebviewWindow) — add_child доступен на Window
     let main_window = app
@@ -869,6 +928,7 @@ async fn get_server_ping() -> Result<serde_json::Value, String> {
 /// Загружает скриншот на catbox.moe
 #[command]
 async fn upload_to_gallery(image_path: String, author: String) -> Result<serde_json::Value, String> {
+    log_info!("upload_to_gallery: author={}, path={}", author, image_path);
     // Читаем файл
     let image_data = fs::read(&image_path)
         .map_err(|e| format!("Не удалось прочитать файл: {}", e))?;
@@ -901,7 +961,7 @@ async fn upload_to_gallery(image_path: String, author: String) -> Result<serde_j
         .part("fileToUpload", part);
 
     // Загружаем на catbox.moe
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let response = client
         .post("https://catbox.moe/user/api.php")
         .multipart(form)
@@ -1043,6 +1103,7 @@ fn clear_discord_rpc() -> Result<(), String> {
 /// ─────────────────────────────────────────────
 
 fn main() {
+    log_info!("ASTRA Launcher v{} запущен", env!("CARGO_PKG_VERSION"));
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())

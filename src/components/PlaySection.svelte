@@ -9,6 +9,7 @@
     fivemFound = false,
     isLaunching = false,
     serverOnline = false,
+    offlineMode = false,
     isDownloading = false,
     downloadPercent = 0,
     downloadSize = "",
@@ -87,7 +88,24 @@
   </div>
 {/if}
 
-{#if fivemFound}
+{#if offlineMode}
+  <!-- Нет подключения к интернету -->
+  <div class="z-10 text-center">
+    <div class="mb-4 flex justify-center">
+      <svg class="w-16 h-16 text-red-400/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <line x1="12" y1="20" x2="12.01" y2="20" />
+      </svg>
+    </div>
+    <h2 class="text-xl font-bold mb-2 text-red-400" style="font-family: 'Proxima Nova Bold', sans-serif;">Нет подключения</h2>
+    <p class="text-sm text-gray-500">Проверьте подключение к интернету и перезапустите лаунчер</p>
+  </div>
+{:else if fivemFound}
   <!-- Декоративная подложка (gradient glow) -->
   <div class="absolute bottom-[42px] right-[0px] w-[365px] h-[70px] rounded-[1000px_0px_0px_1000px] pointer-events-none z-[29] bg-[linear-gradient(90deg,rgba(0,0,0,0)_0%,rgba(246,74,70,0.21)_100%)]"></div>
   <!-- Кнопка Играть — pill shape -->
@@ -99,7 +117,7 @@
     style="{serverOnline && !isLaunching ? 'box-shadow: 0 0 0 0 rgba(246,74,70,0.4);' : ''}"
     onclick={handlePlay}
     onmouseenter={playHoverSound}
-    disabled={isLaunching}
+    disabled={isLaunching || !serverOnline}
   >
     <!-- Прогресс-бар предзагрузки (фоновый) -->
     {#if precacheDownloading || precacheExtracting}
@@ -123,10 +141,13 @@
       {/if}
       <span class="text-white text-[22px] tracking-[-0.44px] whitespace-nowrap"
             style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;">
-        {playLabel}
+        {!serverOnline ? "Сервер офлайн" : playLabel}
       </span>
     </div>
   </button>
+  {#if !serverOnline && !isLaunching}
+    <p class="absolute bottom-14 right-4 text-xs text-gray-500 z-10">Сервер временно недоступен</p>
+  {/if}
 {:else if isDownloading}
   <!-- Скачивание FiveM -->
   <div class="z-10 w-80 mt-4">

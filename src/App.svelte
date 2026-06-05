@@ -19,13 +19,14 @@
   import { invoke } from "@tauri-apps/api/core";
   import { getVersion } from "@tauri-apps/api/app";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { open } from "@tauri-apps/plugin-dialog";
   import { open as openUrl } from "@tauri-apps/plugin-shell";
-  import { relaunch } from "@tauri-apps/plugin-process";
-  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-  import { SIZES, COLORS, FONTS } from "./constants";
-  import { handleError, ErrorLogger } from "./errorHandling";
+  import { TIMING } from "./constants";
+  import { getServerStore } from "./stores/serverStore.svelte";
+  import { getUpdateStore } from "./stores/updateStore.svelte";
+  import { getFivemStore } from "./stores/fivemStore.svelte";
+  import { getAudioStore } from "./stores/audioStore.svelte";
+  import { getOnboardingStore } from "./stores/onboardingStore.svelte";
   import Background from "./components/Background.svelte";
   import Notifications from "./components/Notifications.svelte";
   import UpdateIndicator from "./components/UpdateIndicator.svelte";
@@ -38,6 +39,13 @@
   import PlaySection from "./components/PlaySection.svelte";
   import OnboardingModal from "./components/OnboardingModal.svelte";
 
+  // ── Store instances ────────────────────────────
+  const server = getServerStore();
+  const update = getUpdateStore();
+  const fivem = getFivemStore();
+  const audio = getAudioStore();
+  const onboarding = getOnboardingStore();
+
   let appWindow;
   try {
     appWindow = getCurrentWindow();
@@ -46,107 +54,57 @@
     appWindow = null;
   }
 
-  // ── Состояние (Svelte 5 Runes) ──────────────────
-  let isLaunching = $state(false);
-  let statusMessage = $state("");
+  // ── Локальное UI-состояние (не в stores) ────────
   let activeMenu = $state("play");
   let previousMenu = $state("play");
-
-  // Анимация загрузки при подключении
-  let launchPhase = $state(0); // 0=нет, 1=проверка, 2=подключение, 3=загрузка, 4=запуск
-  let launchProgress = $state(0); // 0-100
-  const launchPhases = [
-    { label: "Проверка клиента", icon: "check" },
-    { label: "Подключение к серверу", icon: "connect" },
-    { label: "Загрузка ресурсов", icon: "download" },
-    { label: "Запуск FiveM", icon: "play" },
-  ];
-
-  // Статус сервера (реальный)
-  let serverOnline = $state(false);
-  let serverPlayers = $state(0);
-  let serverMaxPlayers = $state(0);
-  let serverLoading = $state(true);
-  let prevServerOnline = $state(null); // для отслеживания изменений
-
-  // FiveM путь
-  let fivemPath = $state("");
-  let fivemFound = $state(false);
-
-  // Скачивание FiveM
-  let isDownloading = $state(false);
-  let downloadPercent = $state(0);
-  let downloadSize = $state("");
-  let downloadError = $state("");
-
-  // #5 — Автообновление (tauri-plugin-updater — бесшовное, без установщика)
-  let updateAvailable = $state(false);
-  let updateInfo = $state({ current_version: "", latest_version: "", release_notes: "" });
-  let updateChecked = $state(false);
-  let updateDownloading = $state(false);
-  let updateDownloadPercent = $state(0);
-  let updateDownloaded = $state(0);
-  let updateTotal = $state(0);
-  let updateError = $state("");
-  let showUpdateModal = $state(false);
-  let pendingUpdate = $state(null); // объект Update от плагина
-
-  // #7 — Уведомления сервера
-  let notifications = $state([]);
-  let notificationId = 0;
-
-  // #9 — Имя пользователя
-  let username = $state("Player");
-
-  // #11 — Звуки кликов и наведения
-  let clickSound = null;
-  let hoverSound = null;
-
-  // #2 — Пинг сервера
-  let serverPing = $state(0);
-
-  // #14 — Музыка в лаунчере
-  // #13 — Discord Rich Presence (флаг)
-  let discordRpcActive = $state(false);
-
   let showCloseConfirm = $state(false);
   let showLogoutConfirm = $state(false);
-
-  // Анимация появления лаунчера
+  let pageTransition = $state("");
   let launcherReady = $state(false);
+  let browserActive = $state(false);
+  let username = $state("Player");
+  let discordRpcActive = $state(false);
 
-  // ── Онбординг (первый запуск) ──────────────────
-  let onboardingActive = $state(false);
-  let onboardingStep = $state(1); // 1=Приветствие, 2=FiveM, 3=Никнейм, 4=Готово
-  let onboardingFivemSearching = $state(false);
-  let onboardingFivemResult = $state(null); // null | 'found' | 'not_found'
-  let onboardingNickname = $state("");
-  let onboardingNicknameSaving = $state(false);
-
-  // Параллакс — смещение фона при движении мыши
+  // Параллакс — смещение фона при движении мыши (throttled via rAF)
   let parallaxX = $state(0);
   let parallaxY = $state(0);
+  let parallaxRafId = $state(0);
 
   // DPI масштаб для ASTRA текста на 2K/4K
   let dpiScale = $state(1);
 
   function handleMouseMove(e) {
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    parallaxX = ((e.clientX - cx) / cx) * 12;
-    parallaxY = ((e.clientY - cy) / cy) * 8;
+    if (parallaxRafId) return; // уже запланирован кадр
+    parallaxRafId = requestAnimationFrame(() => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      parallaxX = ((e.clientX - cx) / cx) * 12;
+      parallaxY = ((e.clientY - cy) / cy) * 8;
+      parallaxRafId = 0;
+    });
   }
 
-  // Частицы — позиции кэшируются один раз
+  // Клавиатурная навигация — Escape закрывает модалки
+  function handleKeyDown(e) {
+    if (e.key === "Escape") {
+      if (showCloseConfirm) { showCloseConfirm = false; return; }
+      if (showLogoutConfirm) { showLogoutConfirm = false; return; }
+      if (update.showModal) { update.closeUpdateModal(audio.playClickSound); return; }
+      if (onboarding.active && onboarding.step > 1) { onboarding.step--; return; }
+    }
+  }
+
+  // Частицы — позиции кэшируются один раз (20 вместо 30 для производительности)
   let particleStyles = $state([]);
   function initParticles() {
-    particleStyles = Array.from({ length: 30 }, () => ({
+    particleStyles = Array.from({ length: 20 }, () => ({
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
       delay: `${Math.random() * 8}s`,
       duration: `${4 + Math.random() * 6}s`,
       width: `${1 + Math.random() * 2}px`,
       height: `${1 + Math.random() * 2}px`,
+      willChange: "transform, opacity",
     }));
   }
 
@@ -154,10 +112,10 @@
 
   // Производное: текст кнопки
   let playLabel = $derived(
-    precacheDownloading ? `Скачивание кеша ${precachePercent}%${precacheTotal ? ' (' + precacheDownloaded + '/' + precacheTotal + ')' : ''}` :
-    precacheExtracting ? `Распаковка кеша ${precachePercent}%` :
-    launchPhase > 0 ? launchPhases[launchPhase - 1]?.label || "Запуск…" :
-    isLaunching ? "Запуск…" : "Играть"
+    fivem.precacheDownloading ? `Скачивание кеша ${fivem.precachePercent}%${fivem.precacheTotal ? ' (' + fivem.precacheDownloaded + '/' + fivem.precacheTotal + ')' : ''}` :
+    fivem.precacheExtracting ? `Распаковка кеша ${fivem.precachePercent}%` :
+    fivem.launchPhase > 0 ? fivem.launchPhases[fivem.launchPhase - 1]?.label || "Запуск…" :
+    fivem.launching ? "Запуск…" : "Играть"
   );
 
   // Пункты бокового меню (из imdex.tsx)
@@ -170,150 +128,10 @@
     { id: "settings",   label: "Настройки",   icon: "settings",   active: false, group: 3 },
   ];
 
-  // ── #11 Звуки ──────────────────────────────────
-  function playClickSound() {
-    if (!clickSound) return;
-    try {
-      clickSound.play();
-    } catch (e) {}
-  }
-
-  function playHoverSound() {
-    if (!hoverSound) return;
-    try {
-      hoverSound.play();
-    } catch (e) {}
-  }
-
-  // ── #7 Уведомления ──────────────────────────────
-  function addNotification(message, type = "info") {
-    const id = ++notificationId;
-    notifications = [...notifications, { id, message, type }];
-    setTimeout(() => {
-      notifications = notifications.filter(n => n.id !== id);
-    }, 4000);
-  }
-
-  // ── Статус сервера ──────────────────────────────
-  let serverInitialized = $state(false); // первый запуск загружен?
-
-  async function loadServerStatus() {
-    // Показываем «Загрузка…» только при первом запуске
-    if (!serverInitialized) serverLoading = true;
-    try {
-      const status = await invoke("get_server_status");
-      const wasOnline = prevServerOnline;
-      serverOnline = status.online;
-      serverPlayers = status.players;
-      serverMaxPlayers = status.max_players;
-      prevServerOnline = status.online;
-      serverInitialized = true;
-
-      // #7 — Уведомление при изменении статуса
-      if (wasOnline !== null && wasOnline !== status.online) {
-        if (status.online) {
-          addNotification("🟢 Сервер снова онлайн!", "success");
-        } else {
-          addNotification("🔴 Сервер перешёл в офлайн", "error");
-        }
-      }
-    } catch (e) {
-      serverOnline = false;
-    } finally {
-      serverLoading = false;
-    }
-  }
-
-  // Обновить статус сервера + пинг (по кнопке)
-  async function refreshServerStatus() {
-    playClickSound();
-    serverLoading = true;
-    await Promise.all([loadServerStatus(), loadServerPing()]);
-  }
-
-  // ── #5 Проверка обновлений (tauri-plugin-updater) ──────
-  async function checkUpdates() {
-    try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-      updateChecked = true;
-      if (update) {
-        updateAvailable = true;
-        pendingUpdate = update;
-        updateInfo = {
-          current_version: update.currentVersion,
-          latest_version: update.version,
-          release_notes: update.body || "",
-        };
-        addNotification(`🔄 Доступно обновление: v${update.version}`, "update");
-      }
-    } catch (e) {
-      console.error("Update check failed:", e);
-      updateChecked = true;
-    }
-  }
-
-  async function startUpdateDownload() {
-    playClickSound();
-    if (!pendingUpdate) return;
-    updateDownloading = true;
-    updateDownloadPercent = 0;
-    updateError = "";
-    updateDownloaded = 0;
-    updateTotal = 0;
-
-    try {
-      let downloaded = 0;
-      let total = 0;
-      await pendingUpdate.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            total = event.data.contentLength || 0;
-            updateTotal = total;
-            break;
-          case 'Progress':
-            downloaded += event.data.chunkLength;
-            updateDownloaded = downloaded;
-            updateDownloadPercent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-            break;
-          case 'Finished':
-            updateDownloadPercent = 100;
-            break;
-        }
-      });
-      // downloadAndInstall скачал, проверил подпись и запустил установщик NSIS
-      // Установщик обновит приложение — перезапускаем текущий процесс
-      addNotification("✅ Обновление установлено! Перезапуск...", "success");
-      setTimeout(() => {
-        relaunch();
-      }, 1000);
-    } catch (e) {
-      updateError = String(e);
-      updateDownloading = false;
-    }
-  }
-
-  async function installUpdate() {
-    playClickSound();
-    if (!pendingUpdate) return;
-    try {
-      // Если обновление уже скачано через download() — устанавливаем и перезапускаем
-      await pendingUpdate.install();
-      await relaunch();
-    } catch (e) {
-      updateError = String(e);
-    }
-  }
-
-  function openUpdateModal() {
-    playClickSound();
-    showUpdateModal = true;
-  }
-
-  function closeUpdateModal() {
-    playClickSound();
-    showUpdateModal = false;
-  }
+  // ── Делегированные функции (stores) ─────────────
+  const playClickSound = audio.playClickSound;
+  const playHoverSound = audio.playHoverSound;
+  const addNotification = server.addNotification;
 
   // ── #9 Имя пользователя ────────────────────────
   async function loadUsername() {
@@ -322,16 +140,6 @@
       username = name || "Player";
     } catch (e) {
       username = "Player";
-    }
-  }
-
-  // ── #2 Пинг сервера ────────────────────────────
-  async function loadServerPing() {
-    try {
-      const result = await invoke("get_server_ping");
-      serverPing = result.ping || 0;
-    } catch (e) {
-      serverPing = 0;
     }
   }
 
@@ -359,339 +167,7 @@
     } catch (e) {}
   }
 
-  // ── Путь к FiveM ────────────────────────────────
-  async function loadFivemPath() {
-    try {
-      const path = await invoke("get_fivem_path");
-      fivemPath = path;
-      fivemFound = !!path;
-    } catch (e) {
-      fivemFound = false;
-    }
-  }
-
-  async function autoFindFivem() {
-    playClickSound();
-    try {
-      const path = await invoke("auto_find_fivem");
-      if (path) {
-        fivemPath = path;
-        fivemFound = true;
-        statusMessage = "FiveM найден автоматически ✓";
-        setTimeout(() => { statusMessage = ""; }, 3000);
-      } else {
-        statusMessage = "FiveM не найден автоматически";
-        setTimeout(() => { statusMessage = ""; }, 3000);
-      }
-    } catch (e) {
-      statusMessage = "Автопоиск недоступен";
-      setTimeout(() => { statusMessage = ""; }, 3000);
-    }
-  }
-
-  async function selectFivemPath() {
-    playClickSound();
-    try {
-      const selected = await open({
-        multiple: false,
-        filters: [{ name: "FiveM", extensions: ["exe"] }],
-      });
-      if (selected) {
-        await invoke("set_fivem_path", { path: selected });
-        fivemPath = selected;
-        fivemFound = true;
-        statusMessage = "Путь к FiveM сохранён ✓";
-        setTimeout(() => { statusMessage = ""; }, 2000);
-      }
-    } catch (e) {
-      // dialog error
-    }
-  }
-
-  // ── Предзагрузка кеша ────────────────────────────
-  let precacheNeeded = $state(false);
-  let precacheDownloading = $state(false);
-  let precacheExtracting = $state(false);
-  let precachePercent = $state(0);
-  let precacheDownloaded = $state("");
-  let precacheTotal = $state("");
-
-  // Форматирование размера файла
-  function fmtSize(b) {
-    if (b === 0) return "0 Б";
-    const k = 1024;
-    const s = ["Б", "КБ", "МБ", "ГБ"];
-    const i = Math.floor(Math.log(b) / Math.log(k));
-    return (b / Math.pow(k, i)).toFixed(1) + " " + s[i];
-  }
-
-  // ── Запуск игры ─────────────────────────────────
-  async function handlePlay() {
-    playClickSound();
-    if (isLaunching) return;
-    isLaunching = true;
-    launchPhase = 1;
-    launchProgress = 0;
-
-    // Этап 1: Проверка клиента + предзагрузка кеша (0-50%)
-    launchProgress = 5;
-    await sleep(300);
-
-    // Проверяем нужна ли предзагрузка
-    try {
-      const check = await invoke("check_precache_needed");
-      precacheNeeded = check.needed;
-
-      if (check.needed) {
-        // Предзагрузка кеша — скачивание + распаковка
-        launchPhase = 3; // "Загрузка ресурсов"
-        precacheDownloading = true;
-        precachePercent = 0;
-
-        const unlisten = await listen("precache-progress", (event) => {
-          const { phase, downloaded, total, percent, extracted, total_files } = event.payload;
-
-          if (phase === "download") {
-            precacheDownloading = true;
-            precacheExtracting = false;
-            precachePercent = percent;
-            precacheDownloaded = fmtSize(downloaded);
-            precacheTotal = total > 0 ? fmtSize(total) : "";
-            // Прогресс: 5-40% (скачивание)
-            launchProgress = 5 + Math.round(percent * 0.35);
-          } else if (phase === "extract") {
-            precacheDownloading = false;
-            precacheExtracting = true;
-            precachePercent = percent;
-            // Прогресс: 40-50% (распаковка)
-            launchProgress = 40 + Math.round(percent * 0.1);
-          }
-        });
-
-        try {
-          await invoke("precache_server_files");
-          precacheNeeded = false;
-        } catch (error) {
-          // Предзагрузка не удалась — не критично, продолжаем
-          // precache failed
-          addNotification("⚠️ Предзагрузка не удалась: " + error, "error");
-        }
-
-        unlisten();
-        precacheDownloading = false;
-        precacheExtracting = false;
-      }
-
-      launchProgress = 50;
-    } catch (e) {
-      // cache check failed
-      launchProgress = 25;
-    }
-
-    // Этап 2: Подключение к серверу (50-70%)
-    launchPhase = 2;
-    launchProgress = 55;
-    try {
-      const result = await invoke("launch_game");
-      launchProgress = 70;
-    } catch (error) {
-      launchPhase = 0;
-      launchProgress = 0;
-      isLaunching = false;
-      precacheDownloading = false;
-      precacheExtracting = false;
-      if (error === "FIVEM_NOT_FOUND") {
-        statusMessage = "FiveM не найден. Укажите путь в настройках.";
-      } else {
-        statusMessage = `Ошибка: ${error}`;
-      }
-      setTimeout(() => { statusMessage = ""; }, 4000);
-      return;
-    }
-
-    // Этап 3: Загрузка ресурсов (70-90%) — если кеш не предзагружен, FiveM скачает сам
-    launchPhase = 3;
-    launchProgress = 75;
-    await sleep(400);
-    launchProgress = 85;
-    await sleep(300);
-
-    // Этап 4: Запуск (90-100%)
-    launchPhase = 4;
-    launchProgress = 95;
-    await sleep(300);
-    launchProgress = 100;
-    await sleep(300);
-
-    // Готово
-    launchPhase = 0;
-    launchProgress = 0;
-    isLaunching = false;
-    precacheDownloading = false;
-    precacheExtracting = false;
-    statusMessage = "FiveM запущен ✓";
-    setDiscordRpcPlaying();
-    setTimeout(() => { statusMessage = ""; }, 3000);
-  }
-
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // ── Скачивание FiveM ────────────────────────────
-  async function downloadAndInstall() {
-    playClickSound();
-    if (isDownloading) return;
-    isDownloading = true;
-    downloadPercent = 0;
-    downloadSize = "";
-    downloadError = "";
-    try {
-      const unlisten = await listen("download-progress", (event) => {
-        const { downloaded, total, percent } = event.payload;
-        downloadPercent = percent;
-        downloadSize = total > 0 ? `${fmtSize(downloaded)} / ${fmtSize(total)}` : fmtSize(downloaded);
-      });
-      await invoke("download_fivem");
-      unlisten();
-      downloadPercent = 100;
-      downloadSize = "Запуск установщика…";
-      await invoke("launch_fivem_installer");
-      statusMessage = "Установщик запущен. Дождитесь установки, затем нажмите «Проверить».";
-      const poll = setInterval(async () => {
-        try {
-          const installed = await invoke("check_fivem_installed");
-          if (installed) {
-            clearInterval(poll);
-            await loadFivemPath();
-            isDownloading = false;
-            statusMessage = "FiveM установлен ✓";
-            setTimeout(() => { statusMessage = ""; }, 3000);
-          }
-        } catch (e) {}
-      }, 3000);
-    } catch (error) {
-      downloadError = `${error}`;
-      isDownloading = false;
-    }
-  }
-
-  async function checkFivemAgain() {
-    playClickSound();
-    await loadFivemPath();
-  }
-
-  // ── Онбординг (первый запуск) ──────────────────
-  async function checkOnboarding() {
-    try {
-      const complete = await invoke("is_onboarding_complete");
-      if (!complete) {
-        onboardingActive = true;
-        onboardingStep = 1;
-      }
-    } catch (e) {
-      // По умолчанию — не показываем
-    }
-  }
-
-  async function onboardingNext() {
-    playClickSound();
-    if (onboardingStep === 1) {
-      // Переход к шагу 2 — автопоиск FiveM
-      onboardingStep = 2;
-      onboardingFivemSearching = true;
-      onboardingFivemResult = null;
-      try {
-        const path = await invoke("auto_find_fivem");
-        if (path) {
-          fivemPath = path;
-          fivemFound = true;
-          onboardingFivemResult = 'found';
-        } else {
-          onboardingFivemResult = 'not_found';
-        }
-      } catch (e) {
-        onboardingFivemResult = 'not_found';
-      }
-      onboardingFivemSearching = false;
-    } else if (onboardingStep === 2) {
-      // Переход к шагу 3 — ввод никнейма
-      onboardingStep = 3;
-    } else if (onboardingStep === 3) {
-      // Сохранить никнейм и перейти к шагу 4
-      onboardingNicknameSaving = true;
-      const name = onboardingNickname.trim() || "Player";
-      try {
-        await invoke("save_username", { name });
-        username = name;
-      } catch (e) {}
-      try {
-        await invoke("complete_onboarding");
-      } catch (e) {}
-      onboardingNicknameSaving = false;
-      onboardingStep = 4;
-    } else if (onboardingStep === 4) {
-      // Закрыть онбординг
-      onboardingActive = false;
-    }
-  }
-
-  async function onboardingSelectFivem() {
-    playClickSound();
-    try {
-      const selected = await open({
-        multiple: false,
-        filters: [{ name: "FiveM", extensions: ["exe"] }],
-      });
-      if (selected) {
-        await invoke("set_fivem_path", { path: selected });
-        fivemPath = selected;
-        fivemFound = true;
-        onboardingFivemResult = 'found';
-      }
-    } catch (e) {}
-  }
-
-  async function onboardingDownloadFivem() {
-    playClickSound();
-    isDownloading = true;
-    downloadPercent = 0;
-    downloadSize = "";
-    downloadError = "";
-    try {
-      const unlisten = await listen("download-progress", (event) => {
-        const { downloaded, total, percent } = event.payload;
-        downloadPercent = percent;
-        downloadSize = total > 0 ? `${fmtSize(downloaded)} / ${fmtSize(total)}` : fmtSize(downloaded);
-      });
-      await invoke("download_fivem");
-      unlisten();
-      downloadPercent = 100;
-      downloadSize = "Запуск установщика…";
-      await invoke("launch_fivem_installer");
-      statusMessage = "Установщик запущен. Дождитесь установки, затем нажмите «Проверить».";
-      const poll = setInterval(async () => {
-        try {
-          const installed = await invoke("check_fivem_installed");
-          if (installed) {
-            clearInterval(poll);
-            await loadFivemPath();
-            isDownloading = false;
-            onboardingFivemResult = 'found';
-            statusMessage = "FiveM установлен ✓";
-            setTimeout(() => { statusMessage = ""; }, 3000);
-          }
-        } catch (e) {}
-      }, 3000);
-    } catch (error) {
-      downloadError = `${error}`;
-      isDownloading = false;
-    }
-  }
-
   // ── Telegram в лаунчере (встроенный webview) ──
-  let browserActive = $state(false);
-
   async function openEmbeddedBrowser(url) {
     try {
       await invoke("create_embedded_webview", { url });
@@ -714,7 +190,7 @@
 
   // ── Обработчик меню ─────────────────────────────
   function selectMenu(id) {
-    playClickSound();
+    audio.playClickSound();
     if (id === "discord") {
       openUrl("https://discord.gg/zfVss2mNVW");
       return;
@@ -734,13 +210,9 @@
     pageTransition = "fade-in";
 
     if (id === "settings") {
-      loadFivemPath();
+      fivem.loadFivemPath();
     }
   }
-
-  // ── #12 Drag зоны ───────────────────────────────
-  // Перетаскивание теперь через data-tauri-drag-region на drag-зоне
-  // (нативный механизм Tauri, надёжнее чем startDragging)
 
   // ── Инициализация ───────────────────────────────
   onMount(() => {
@@ -748,63 +220,27 @@
     dpiScale = window.devicePixelRatio || 1;
 
     // Получаем версию приложения из Tauri
-    getVersion().then(v => { updateInfo.current_version = v; }).catch(() => {});
+    getVersion().then(v => { update.info.current_version = v; }).catch(() => {});
 
     initParticles();
-    setTimeout(() => { launcherReady = true; }, 100);
+    setTimeout(() => { launcherReady = true; }, TIMING.launcherReadyDelay);
 
     // #11 — Инициализация звуков через AudioContext
-    try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audio.initAudio();
 
-      // Звук клика — короткий щелчок (800Hz, 50ms)
-      const generateClick = () => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 800;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-        osc.start(audioCtx.currentTime);
-        osc.stop(audioCtx.currentTime + 0.05);
-      };
-      clickSound = { play: generateClick, currentTime: 0 };
-
-      // Звук наведения — мягкий тон (600Hz, 40ms)
-      const generateHover = () => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 600;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-        osc.start(audioCtx.currentTime);
-        osc.stop(audioCtx.currentTime + 0.04);
-      };
-      hoverSound = { play: generateHover, currentTime: 0 };
-    } catch (e) {
-      clickSound = null;
-      hoverSound = null;
-    }
-
-    loadServerStatus();
-    loadFivemPath();
-    autoFindFivem();
+    server.loadServerStatus();
+    fivem.loadFivemPath();
+    fivem.autoFindFivem(audio.playClickSound);
     loadUsername();
-    loadServerPing();
-    checkUpdates();
+    server.loadServerPing();
+    update.checkUpdates();
     initDiscordRpc();
-    checkOnboarding();
+    onboarding.checkOnboarding();
 
-    // Автообновление сервера каждые 10 сек (без мерцания — serverLoading не переключается)
-    const serverInterval = setInterval(loadServerStatus, 10000);
-    const pingInterval = setInterval(loadServerPing, 10000);
+    const serverInterval = setInterval(() => server.loadServerStatus(), TIMING.serverStatusInterval);
+    const pingInterval = setInterval(() => server.loadServerPing(), TIMING.serverPingInterval);
     // Проверка обновлений каждые 30 мин
-    const updateInterval = setInterval(checkUpdates, 1800000);
+    const updateInterval = setInterval(() => update.checkUpdates(), TIMING.updateCheckInterval);
 
     return () => {
       clearInterval(serverInterval);
@@ -815,7 +251,7 @@
 </script>
 
 <!-- ── Корневой контейнер ── -->
-<svelte:window onmousemove={handleMouseMove} />
+<svelte:window onmousemove={handleMouseMove} onkeydown={handleKeyDown} />
 
 <div class="astra-cursor relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 
@@ -827,12 +263,12 @@
   <!-- ═══════════════════════════════════════════════
        #7 УВЕДОМЛЕНИЯ (toast)
        ═══════════════════════════════════════════════ -->
-  <Notifications {notifications} />
+  <Notifications notifications={server.notifications} />
 
   <!-- ═══════════════════════════════════════════════
        #5 ИНДИКАТОР ОБНОВЛЕНИЯ
        ═══════════════════════════════════════════════ -->
-  <UpdateIndicator {updateAvailable} {updateInfo} onOpen={openUpdateModal} {playHoverSound} />
+  <UpdateIndicator updateAvailable={update.available} updateInfo={update.info} onOpen={() => update.openUpdateModal(audio.playClickSound)} playHoverSound={audio.playHoverSound} />
 
   <!-- ═══════════════════════════════════════════════
        DRAG ZONE — верхняя полоса для перетаскивания окна
@@ -846,12 +282,12 @@
   <!-- ═══════════════════════════════════════════════
        КНОПКИ УПРАВЛЕНИЯ ОКНОМ (свернуть / закрыть)
        ═══════════════════════════════════════════════ -->
-  <WindowControls onClose={() => { playClickSound(); showCloseConfirm = true; }} {playHoverSound} />
+  <WindowControls onClose={() => { audio.playClickSound(); showCloseConfirm = true; }} playHoverSound={audio.playHoverSound} />
 
   <!-- ═══════════════════════════════════════════════
        МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКРЫТИЯ
        ═══════════════════════════════════════════════ -->
-  <CloseConfirmModal show={showCloseConfirm} onClose={() => { showCloseConfirm = false; }} {playClickSound} {playHoverSound} />
+  <CloseConfirmModal show={showCloseConfirm} onClose={() => { showCloseConfirm = false; }} playClickSound={audio.playClickSound} playHoverSound={audio.playHoverSound} />
 
   <!-- ═══════════════════════════════════════════════
        МОДАЛКА ПОДТВЕРЖДЕНИЯ ВЫХОДА ИЗ ПРОФИЛЯ
@@ -859,26 +295,26 @@
   <LogoutConfirmModal
     show={showLogoutConfirm}
     onClose={() => { showLogoutConfirm = false; }}
-    onLogout={() => { username = "Player"; addNotification("Вы вышли из аккаунта", "info"); }}
-    {playClickSound}
-    {playHoverSound}
+    onLogout={() => { username = "Player"; server.addNotification("Вы вышли из аккаунта", "info"); }}
+    playClickSound={audio.playClickSound}
+    playHoverSound={audio.playHoverSound}
   />
 
   <!-- ═══════════════════════════════════════════════
        МОДАЛКА ОБНОВЛЕНИЯ
        ═══════════════════════════════════════════════ -->
   <UpdateModal
-    show={showUpdateModal}
-    {updateInfo}
-    {updateDownloading}
-    {updateDownloadPercent}
-    {updateDownloaded}
-    {updateTotal}
-    {updateError}
-    onStartDownload={startUpdateDownload}
-    onClose={closeUpdateModal}
-    {playClickSound}
-    {playHoverSound}
+    show={update.showModal}
+    updateInfo={update.info}
+    updateDownloading={update.downloading}
+    updateDownloadPercent={update.downloadPercent}
+    updateDownloaded={update.downloaded}
+    updateTotal={update.total}
+    updateError={update.error}
+    onStartDownload={() => update.startUpdateDownload(audio.playClickSound)}
+    onClose={() => update.closeUpdateModal(audio.playClickSound)}
+    playClickSound={audio.playClickSound}
+    playHoverSound={audio.playHoverSound}
   />
 
 
@@ -891,15 +327,15 @@
        ═══════════════════════════════════════════════ -->
   <Sidebar
     {activeMenu}
-    {serverOnline}
-    {serverLoading}
-    {serverPlayers}
-    {serverPing}
+    serverOnline={server.online}
+    serverLoading={server.loading}
+    serverPlayers={server.players}
+    serverPing={server.ping}
     {username}
     {menuItems}
     {selectMenu}
-    {playHoverSound}
-    {playClickSound}
+    playHoverSound={audio.playHoverSound}
+    playClickSound={audio.playClickSound}
     onLogout={() => { showLogoutConfirm = true; }}
   />
 
@@ -915,18 +351,19 @@
            СЕКЦИЯ: НАСТРОЙКИ
            ═══════════════════════════════════════ -->
       <Settings
-        {fivemPath}
-        {fivemFound}
-        {updateInfo}
-        {updateAvailable}
-        {updateChecked}
-        {serverOnline}
-        {serverPlayers}
-        {serverMaxPlayers}
-        {selectFivemPath}
-        {autoFindFivem}
-        {openUpdateModal}
-        {playHoverSound}
+        fivemPath={fivem.path}
+        fivemFound={fivem.found}
+        updateInfo={update.info}
+        updateAvailable={update.available}
+        updateChecked={update.checked}
+        serverOnline={server.online}
+        serverPlayers={server.players}
+        serverMaxPlayers={server.maxPlayers}
+        selectFivemPath={() => fivem.selectFivemPath(audio.playClickSound)}
+        autoFindFivem={() => fivem.autoFindFivem(audio.playClickSound)}
+        openUpdateModal={() => update.openUpdateModal(audio.playClickSound)}
+        checkUpdates={() => update.checkUpdates()}
+        playHoverSound={audio.playHoverSound}
       />
 
     {:else if activeMenu === "play"}
@@ -934,25 +371,26 @@
            СЕКЦИЯ: ИГРАТЬ (из imdex.tsx дизайн)
            ═══════════════════════════════════════ -->
       <PlaySection
-        {launchPhase}
-        {launchProgress}
-        {launchPhases}
-        {fivemFound}
-        {isLaunching}
-        {serverOnline}
-        {isDownloading}
-        {downloadPercent}
-        {downloadSize}
-        {downloadError}
-        {precacheDownloading}
-        {precacheExtracting}
-        {precachePercent}
+        launchPhase={fivem.launchPhase}
+        launchProgress={fivem.launchProgress}
+        launchPhases={fivem.launchPhases}
+        fivemFound={fivem.found}
+        isLaunching={fivem.launching}
+        serverOnline={server.online}
+        offlineMode={server.offline}
+        isDownloading={fivem.downloading}
+        downloadPercent={fivem.downloadPercent}
+        downloadSize={fivem.downloadSize}
+        downloadError={fivem.downloadError}
+        precacheDownloading={fivem.precacheDownloading}
+        precacheExtracting={fivem.precacheExtracting}
+        precachePercent={fivem.precachePercent}
         {playLabel}
-        {statusMessage}
-        {handlePlay}
-        {downloadAndInstall}
-        {checkFivemAgain}
-        {playHoverSound}
+        statusMessage={fivem.statusMessage}
+        handlePlay={() => fivem.handlePlay(audio.playClickSound, server.online, setDiscordRpcPlaying)}
+        downloadAndInstall={() => fivem.downloadAndInstall(audio.playClickSound)}
+        checkFivemAgain={() => fivem.checkFivemAgain(audio.playClickSound)}
+        playHoverSound={audio.playHoverSound}
       />
 
     {:else}
@@ -983,21 +421,21 @@
        ОНБОРДИНГ (первый запуск)
        ═══════════════════════════════════════════════ -->
   <OnboardingModal
-    {onboardingActive}
-    {onboardingStep}
-    {onboardingFivemSearching}
-    {onboardingFivemResult}
-    {onboardingNickname}
-    {onboardingNicknameSaving}
-    {fivemPath}
-    {isDownloading}
-    {downloadPercent}
-    {downloadSize}
-    {downloadError}
-    {onboardingNext}
-    {onboardingSelectFivem}
-    {onboardingDownloadFivem}
-    {playHoverSound}
-    onNicknameChange={(val) => { onboardingNickname = val; }}
+    onboardingActive={onboarding.active}
+    onboardingStep={onboarding.step}
+    onboardingFivemSearching={onboarding.fivemSearching}
+    onboardingFivemResult={onboarding.fivemResult}
+    onboardingNickname={onboarding.nickname}
+    onboardingNicknameSaving={onboarding.nicknameSaving}
+    fivemPath={fivem.path}
+    isDownloading={fivem.downloading}
+    downloadPercent={fivem.downloadPercent}
+    downloadSize={fivem.downloadSize}
+    downloadError={fivem.downloadError}
+    onboardingNext={() => onboarding.onboardingNext(audio.playClickSound, { value: username }, (v) => { username = v; })}
+    onboardingSelectFivem={() => onboarding.onboardingSelectFivem(audio.playClickSound)}
+    onboardingDownloadFivem={() => onboarding.onboardingDownloadFivem(audio.playClickSound)}
+    playHoverSound={audio.playHoverSound}
+    onNicknameChange={(val) => { onboarding.nickname = val; }}
   />
 </div>

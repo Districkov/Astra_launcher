@@ -3,10 +3,8 @@
  * Centralized configuration for easy maintenance
  */
 
-// Server Configuration
-export const SERVER_ADDRESS = "185.176.94.21:30120";
-export const SERVER_INFO_URL = "http://185.176.94.21:30120/info.json";
-export const SERVER_PLAYERS_URL = "http://185.176.94.21:30120/players.json";
+// Server Configuration (used by Rust backend, kept for reference)
+// export const SERVER_ADDRESS = "185.176.94.21:30120";
 
 // Update Configuration
 export const UPDATE_CHECK_INTERVAL = 3600000; // 1 hour
@@ -55,8 +53,15 @@ export const AUDIO = {
 export const TIMING = {
   animationDuration: 300, // ms
   transitionDuration: 700, // ms
-  serverPingInterval: 30000, // 30s
+  serverStatusInterval: 10000, // 10s — обновление статуса сервера
+  serverPingInterval: 10000, // 10s — обновление пинга
+  updateCheckInterval: 1800000, // 30 мин — проверка обновлений
+  notificationTimeout: 4000, // 4s — таймаут уведомлений
+  statusMessageTimeout: 3000, // 3s — таймаут статус-сообщений
+  installerPollInterval: 3000, // 3s — интервал проверки установщика
+  installerPollTimeout: 600000, // 10 мин — таймаут ожидания установщика
   modalAnimationDuration: 150, // ms
+  launcherReadyDelay: 300, // ms — задержка перед показом UI
 };
 
 // Keyboard Keys
@@ -76,3 +81,12 @@ export const DIALOG = {
       "bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl",
   },
 };
+
+// Utility: Format file size
+export function fmtSize(b: number): string {
+  if (b === 0) return "0 Б";
+  const k = 1024;
+  const s = ["Б", "КБ", "МБ", "ГБ"];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return (b / Math.pow(k, i)).toFixed(1) + " " + s[i];
+}

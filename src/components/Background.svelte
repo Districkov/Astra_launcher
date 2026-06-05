@@ -21,6 +21,7 @@
       animation-duration: {ps.duration};
       width: {ps.width};
       height: {ps.height};
+      will-change: {ps.willChange || 'auto'};
     "></div>
   {/each}
 </div>

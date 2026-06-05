@@ -14,6 +14,7 @@
     selectFivemPath = async () => {},
     autoFindFivem = async () => {},
     openUpdateModal = () => {},
+    checkUpdates = async () => {},
     playHoverSound = () => {},
   } = $props();
 </script>
@@ -87,6 +88,13 @@
     {:else if updateChecked}
       <p class="text-xs text-green-400/70 mt-1">✓ Установлена последняя версия</p>
     {/if}
+    <button
+      class="mt-3 px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs text-white/50 hover:text-white/70 transition-colors border border-white/5 btn-ripple"
+      onclick={checkUpdates}
+      onmouseenter={playHoverSound}
+    >
+      Проверить обновления
+    </button>
   </div>
 </div>
 
