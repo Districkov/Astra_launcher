@@ -1016,8 +1016,8 @@
        ═══════════════════════════════════════════════ -->
 
   <!-- Subtract1 — красная подсветка справа сверху -->
-  <svg class="absolute top-0 left-[504px] w-[456px] h-[400px] pointer-events-none select-none z-[6] transition-transform duration-300 ease-out"
-       style="transform: translate({parallaxX * 0.6}px, {parallaxY * 0.6}px);" viewBox="0 0 456 400" fill="none">
+  <svg class="absolute top-0 left-[504px] w-[456px] h-[400px] pointer-events-none select-none z-[6]"
+       viewBox="0 0 456 400" fill="none">
     <defs><filter id="glow1" x="-200" y="-200" width="900" height="900" filterUnits="userSpaceOnUse">
       <feGaussianBlur stdDeviation="100"/><feComposite in2="hardAlpha" operator="out"/>
       <feColorMatrix type="matrix" values="0 0 0 0 0.965 0 0 0 0 0.29 0 0 0 0 0.275 0 0 0 1 0"/>
@@ -1027,8 +1027,8 @@
   </svg>
 
   <!-- Subtract — красная подсветка слева снизу -->
-  <svg class="absolute top-[282px] left-0 w-[642px] h-[358px] pointer-events-none select-none z-[6] transition-transform duration-300 ease-out"
-       style="transform: translate({parallaxX * 0.5}px, {parallaxY * 0.5}px);" viewBox="0 0 647 386" fill="none">
+  <svg class="absolute top-[282px] left-0 w-[642px] h-[358px] pointer-events-none select-none z-[6]"
+       viewBox="0 0 647 386" fill="none">
     <defs><filter id="glow2" x="-200" y="-200" width="1100" height="900" filterUnits="userSpaceOnUse">
       <feGaussianBlur stdDeviation="100"/><feComposite in2="hardAlpha" operator="out"/>
       <feColorMatrix type="matrix" values="0 0 0 0 0.965 0 0 0 0 0.29 0 0 0 0 0.275 0 0 0 1 0"/>
@@ -1037,26 +1037,26 @@
     <g filter="url(#glow2)"><path d="M279.5 535C372 535 447 460 447 367.5C447 275 372 200 279.5 200C187 200 112 275 112 367.5C112 460 187 535 279.5 535ZM280 499.5C207.6 499.5 148.8 440.7 148.8 368.2C148.8 295.6 207.6 236.8 280 236.8C352.7 236.8 411.5 295.6 411.5 368.2C411.5 440.7 352.7 499.5 280 499.5Z" fill="#F64A46"/></g>
   </svg>
 
-  <!-- GTAV персонаж — выше текста ASTRA и звёзд, но ниже кнопки играть -->
+  <!-- GTAV персонаж — выше текста ASTRA и звёзд, но ниже кнопки играть (параллакс) -->
   <img src="/GTAV-33-4.png.png" alt="" class="absolute top-4 left-[16.5%] w-[83.5%] h-[104%] object-cover pointer-events-none select-none z-[5] transition-transform duration-300 ease-out"
        style="transform: translate({parallaxX * 0.8}px, {parallaxY * 0.8}px);" aria-hidden="true" />
 
-  <!-- Большой текст ASTRA на фоне -->
+  <!-- Большой текст ASTRA на фоне (400px как в imdex.tsx) -->
   <div class="pointer-events-none select-none"
        style="position: absolute; top: {108 / dpiScale}px; left: {230 / dpiScale}px;">
     <div class="pointer-events-none select-none"
-         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: {280 / dpiScale}px; font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: {-8 / dpiScale}px; line-height: normal; white-space: nowrap;">
+         style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: {400 / dpiScale}px; font-weight: normal; color: transparent; -webkit-text-stroke: 1px rgba(255,255,255,0.05); letter-spacing: {-8 / dpiScale}px; line-height: normal; white-space: nowrap;">
       ASTRA
     </div>
   </div>
 
-  <!-- Star 23 — звезда справа снизу -->
+  <!-- Star 23 — звезда справа снизу (параллакс) -->
   <svg class="absolute top-[410px] left-[702px] w-[258px] h-[230px] pointer-events-none select-none transition-transform duration-300 ease-out"
        style="transform: translate({parallaxX * 1.2}px, {parallaxY * 1.2}px);" viewBox="0 0 259 230" fill="none">
     <path d="M95.1 301.5C94.06 325 123.66 336.1 138.3 317.7L182.8 261.8C189.2 253.8 200.1 250.8 209.7 254.4L276.6 279.5C298.6 287.7 318.3 263 305.4 243.4L266 183.8C260.3 175.2 260.8 164 267.2 155.9L311.8 100C326.4 81.7 309 55.3 286.3 61.5L217.5 80.6C207.5 83.3 197 79.4 191.3 70.8L151.9 11.2C139 -8.4 108.5 0 107.5 23.5L104.3 94.8C103.8 105.1 96.8 113.9 86.9 116.7L18 135.7C-4.6 142 -6 173.5 16 181.8L82.9 206.9C92.5 210.5 98.7 219.9 98.3 230.2L95.1 301.5Z" stroke="white" stroke-opacity="0.3" stroke-width="0.5"/>
   </svg>
 
-  <!-- Star 24 — звезда сверху -->
+  <!-- Star 24 — звезда сверху (параллакс) -->
   <svg class="absolute top-0 left-[106px] w-[323px] h-[156px] pointer-events-none select-none transition-transform duration-300 ease-out"
        style="transform: translate({parallaxX * 1.4}px, {parallaxY * 1.4}px);" viewBox="0 0 324 157" fill="none">
     <path d="M201.2 148.6C217.6 165.4 246 151.5 242.6 128.2L232.5 57.5C231 47.3 236.2 37.3 245.5 32.8L309.6 1.3C330.6 -9.1 326.1 -40.4 303 -44.4L232.6 -56.6C222.5 -58.3 214.6 -66.4 213.1 -76.6L202.9 -147.3C199.6 -170.5 168.5 -175.9 157.5 -155.1L124.2 -91.9C119.4 -82.8 109.3 -77.9 99.1 -79.6L28.7 -91.8C5.6 -95.8 -9.2 -67.8 7.2 -51L57 0.2C64.2 7.6 65.8 18.8 61 27.9L27.7 91.1C16.7 111.9 38.7 134.5 59.8 124.1L123.9 92.6C133.2 88.1 144.3 90 151.4 97.4L201.2 148.6Z" stroke="white" stroke-opacity="0.3" stroke-width="0.5"/>
@@ -1154,19 +1154,15 @@
       {/each}
     </nav>
 
-    <!-- Разделитель -->
-    <div class="mx-4 mb-2 h-px bg-white/10"></div>
-
     <!-- #9 — Профиль пользователя (имя из сервера/FiveM) -->
-    <div class="px-4 pb-3 flex flex-col items-center">
-      <div class="flex items-center gap-2 mb-2">
-        <svg class="w-6 h-6 text-white/30" viewBox="0 0 22 25" fill="currentColor"><path d="M20.09 4.81L12.89 0.53C11.72 -0.18 10.27 -0.18 9.08 0.53L1.9 4.81C0.73 5.51 0 6.81 0 8.23V16.78C0 18.18 0.73 19.48 1.9 20.19L9.09 24.48C10.27 25.18 11.72 25.18 12.91 24.48L20.1 20.19C21.27 19.49 22 18.19 22 16.78V8.23C21.99 6.81 21.26 5.53 20.09 4.81ZM10.99 6.68C12.56 6.68 13.82 7.98 13.82 9.59C13.82 11.2 12.56 12.5 10.99 12.5C9.43 12.5 8.17 11.2 8.17 9.59C8.17 7.99 9.43 6.68 10.99 6.68ZM14.24 18.33H7.75C6.77 18.33 6.2 17.2 6.74 16.36C7.57 15.1 9.17 14.25 10.99 14.25C12.82 14.25 14.42 15.1 15.24 16.36C15.79 17.19 15.21 18.33 14.24 18.33Z"/></svg>
-        <p class="text-sm text-white" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.28px;">
-          {username}
-        </p>
-      </div>
+    <div class="px-3 pb-3 flex items-center gap-2">
+      <svg class="w-5 h-5 text-white/30 flex-shrink-0" viewBox="0 0 22 25" fill="currentColor"><path d="M20.09 4.81L12.89 0.53C11.72 -0.18 10.27 -0.18 9.08 0.53L1.9 4.81C0.73 5.51 0 6.81 0 8.23V16.78C0 18.18 0.73 19.48 1.9 20.19L9.09 24.48C10.27 25.18 11.72 25.18 12.91 24.48L20.1 20.19C21.27 19.49 22 18.19 22 16.78V8.23C21.99 6.81 21.26 5.53 20.09 4.81ZM10.99 6.68C12.56 6.68 13.82 7.98 13.82 9.59C13.82 11.2 12.56 12.5 10.99 12.5C9.43 12.5 8.17 11.2 8.17 9.59C8.17 7.99 9.43 6.68 10.99 6.68ZM14.24 18.33H7.75C6.77 18.33 6.2 17.2 6.74 16.36C7.57 15.1 9.17 14.25 10.99 14.25C12.82 14.25 14.42 15.1 15.24 16.36C15.79 17.19 15.21 18.33 14.24 18.33Z"/></svg>
+      <p class="text-sm text-white truncate" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.28px;">
+        {username}
+      </p>
+      <svg class="w-3 h-3 text-white/20 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       <button
-        class="px-4 py-1 text-xs text-white/30 hover:text-white/60 hover:bg-white/5 rounded transition-colors btn-ripple"
+        class="text-xs text-white/30 hover:text-white/60 hover:bg-white/5 rounded px-2 py-0.5 transition-colors btn-ripple"
         onclick={(e) => { e.stopPropagation(); playClickSound(); username = "Player"; addNotification("Вы вышли из аккаунта", "info"); }}
         onmouseenter={playHoverSound}
       >
