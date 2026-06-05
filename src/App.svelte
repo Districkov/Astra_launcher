@@ -1162,7 +1162,7 @@
           {username}
         </p>
         <button
-          class="mt-1 text-[11px] text-white/30 hover:text-white/60 text-left transition-colors"
+          class="mt-0.5 text-[11px] text-white/30 hover:text-white/60 text-left transition-colors"
           onclick={(e) => { e.stopPropagation(); playClickSound(); username = "Player"; addNotification("Вы вышли из аккаунта", "info"); }}
           onmouseenter={playHoverSound}
         >
