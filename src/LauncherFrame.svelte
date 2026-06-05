@@ -102,20 +102,16 @@
 
     <div class="mx-3 my-2 h-px bg-white/10"></div>
 
-    <!-- User Profile -->
-    <div class="px-3 py-3 flex items-center gap-2 flex-shrink-0">
-      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center flex-shrink-0 text-xs font-bold text-white">
+    <!-- User Profile (avatar left, name + logout stacked right) -->
+    <div class="px-3 py-3 flex items-center gap-3 flex-shrink-0">
+      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center flex-shrink-0 text-sm font-bold text-white">
         R
       </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-xs font-medium text-white truncate">r4kuzan</p>
-        <p class="text-[10px] text-gray-500 truncate">ID: 10042</p>
+      <div class="flex flex-col min-w-0">
+        <p class="text-sm font-medium text-white truncate">r4kuzan</p>
+        <button type="button" class="mt-1 text-[11px] text-gray-400 hover:text-gray-300 text-left transition-colors all-unset" on:click={() => selectMenu('settings')}>Выйти</button>
       </div>
     </div>
-
-    <button type="button" class="all-unset w-full px-3 py-2 text-xs text-gray-400 hover:text-gray-300 transition-colors text-left cursor-pointer flex-shrink-0" on:click={() => selectMenu('settings')}>
-      Выйти
-    </button>
   </aside>
 
   <!-- Main Content Area -->
