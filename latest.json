@@ -1,10 +1,1 @@
-﻿{
-    "date":  "2026-06-06",
-    "platforms":  {
-                      "windows_x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYjU3dEhEZ2xxb2pKcEQ4OWZZdnloN2pFTkNqek5mUkdFZ1NYT2pIK3RkZEhhSnplWjFDckV0SmI0THM0bjc1bFRVSG4rYXVhVVRrcGtDNndGWUxKeGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjk3MTAxCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS43LjBfeDY0LXNldHVwLmV4ZQpiYXlWSVU3WDVtakFOUnpNc2htVklsMnhHVkdFY01rZmx6WUtiditaekVlejdEenhWRFkwRHRZNzJqWExPRWxGNk9PZDRMMkx2cHl1Vmh4NVZvL1lCQT09Cg==",
-                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/download/v1.7.0/ASTRA.Launcher_1.7.0_x64-setup.exe"
-                                         }
-                  },
-    "version":  "1.7.0"
-}
+{"version":"1.7.0","notes":"v1.7.0 - Store Integration and 22 Improvements","pub_date":"2026-06-06T12:00:00Z","platforms":{"windows-x86_64":{"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYjU3dEhEZ2xxb2pKcEQ4OWZZdnloN2pFTkNqek5mUkdFZ1NYT2pIK3RkZEhhSnplWjFDckV0SmI0THM0bjc1bFRVSG4rYXVhVVRrcGtDNndGWUxKeGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNjk3MTAxCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS43LjBfeDY0LXNldHVwLmV4ZQpiYXlWSVU3WDVtakFOUnpNc2htVklsMnhHVkdFY01rZmx6WUtiditaekVlejdEenhWRFkwRHRZNzJqWExPRWxGNk9PZDRMMkx2cHl1Vmh4NVZvL1lCQT09Cg==","url":"https://github.com/Districkov/Astra_launcher/releases/download/v1.7.0/ASTRA.Launcher_1.7.0_x64-setup.exe"}}}
