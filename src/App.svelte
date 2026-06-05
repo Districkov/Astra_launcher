@@ -1155,7 +1155,7 @@
     </nav>
 
     <!-- #9 — Профиль пользователя (имя из сервера/FiveM) -->
-    <div class="px-3 pb-2 flex items-center gap-3">
+    <div class="px-4 pt-1 pb-3 flex items-center gap-3">
       <svg class="w-7 h-7 text-white/30 flex-shrink-0" viewBox="0 0 22 25" fill="currentColor"><path d="M20.09 4.81L12.89 0.53C11.72 -0.18 10.27 -0.18 9.08 0.53L1.9 4.81C0.73 5.51 0 6.81 0 8.23V16.78C0 18.18 0.73 19.48 1.9 20.19L9.09 24.48C10.27 25.18 11.72 25.18 12.91 24.48L20.1 20.19C21.27 19.49 22 18.19 22 16.78V8.23C21.99 6.81 21.26 5.53 20.09 4.81ZM10.99 6.68C12.56 6.68 13.82 7.98 13.82 9.59C13.82 11.2 12.56 12.5 10.99 12.5C9.43 12.5 8.17 11.2 8.17 9.59C8.17 7.99 9.43 6.68 10.99 6.68ZM14.24 18.33H7.75C6.77 18.33 6.2 17.2 6.74 16.36C7.57 15.1 9.17 14.25 10.99 14.25C12.82 14.25 14.42 15.1 15.24 16.36C15.79 17.19 15.21 18.33 14.24 18.33Z"/></svg>
       <div class="flex flex-col justify-center min-w-0">
         <p class="text-sm text-white truncate" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.28px;">
