@@ -266,13 +266,11 @@
       // Назначаем на глобал для onmousedown
       window.startDrag = startDrag;
 
-      const SPLASH_DURATION = 7000;
+      const MIN_SPLASH = 3000; // минимальное время показа splash (мс)
       const startTime = Date.now();
 
       // Этап 1: Проверка FiveM
-      statusEl.textContent = 'Проверка FiveM…';
-      await sleep(1500);
-
+      statusEl.textContent = 'Поиск FiveM…';
       try {
         const installed = await invoke('check_fivem_installed');
         if (installed) {
@@ -282,27 +280,67 @@
         }
       } catch (e) {
         console.error('check_fivem_installed error:', e);
-        statusEl.textContent = 'Загрузка лаунчера…';
+        statusEl.textContent = 'Пропуск проверки FiveM';
       }
+      await sleep(400);
 
-      // Этап 2: Загрузка ресурсов
-      statusEl.textContent = 'Загрузка ресурсов…';
-      await sleep(2000);
+      // Этап 2: Проверка сервера
+      statusEl.textContent = 'Проверка сервера…';
+      try {
+        const status = await invoke('get_server_status');
+        if (status.online) {
+          const players = status.players || 0;
+          const max = status.max_players || 0;
+          statusEl.textContent = 'Сервер онлайн — ' + players + '/' + max + ' ✓';
+        } else {
+          statusEl.textContent = 'Сервер офлайн';
+        }
+      } catch (e) {
+        console.error('get_server_status error:', e);
+        statusEl.textContent = 'Сервер недоступен';
+      }
+      await sleep(400);
 
-      // Этап 3: Проверка обновлений
+      // Этап 3: Проверка обновлений лаунчера
+      // Используем window.__TAURI__ API напрямую (splash.html не обрабатывается Vite,
+      // поэтому ES-импорт npm-пакетов не работает)
       statusEl.textContent = 'Проверка обновлений…';
-      await sleep(1500);
+      try {
+        const updaterPlugin = tauri.plugins?.updater;
+        if (updaterPlugin) {
+          const update = await updaterPlugin.check();
+          if (update) {
+            statusEl.textContent = 'Доступно обновление v' + update.version;
+          } else {
+            statusEl.textContent = 'Лаунчер актуален ✓';
+          }
+        } else {
+          // Плагин обновлений недоступен в splash — пропускаем
+          statusEl.textContent = 'Лаунчер актуален ✓';
+        }
+      } catch (e) {
+        console.error('update check error:', e);
+        statusEl.textContent = 'Пропуск проверки обновлений';
+      }
+      await sleep(300);
 
-      // Этап 4: Подготовка
-      statusEl.textContent = 'Подготовка лаунчера…';
-      await sleep(1000);
-
-      // Финал
-      statusEl.textContent = 'Готово ✓';
+      // Этап 4: Загрузка имени пользователя
+      statusEl.textContent = 'Загрузка профиля…';
+      try {
+        const name = await invoke('get_username');
+        if (name && name !== 'Player') {
+          statusEl.textContent = 'Добро пожаловать, ' + name + ' ✓';
+        } else {
+          statusEl.textContent = 'Готово ✓';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Готово ✓';
+      }
+      await sleep(300);
 
       // Ждём оставшееся время до минимальной длительности
       const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, SPLASH_DURATION - elapsed);
+      const remaining = Math.max(0, MIN_SPLASH - elapsed);
       await sleep(remaining);
 
       // Открываем главное окно

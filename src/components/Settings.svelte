@@ -1,44 +1,38 @@
-<script lang="ts">
-  import type { UpdateInfo } from "../types";
-
-  export let fivemPath: string;
-  export let fivemFound: boolean;
-  export let updateInfo: UpdateInfo;
-  export let updateAvailable: boolean;
-  export let updateChecked: boolean;
-  export let serverOnline: boolean;
-  export let serverPlayers: number;
-  export let serverMaxPlayers: number;
-
-  export let selectFivemPath: () => Promise<void>;
-  export let autoFindFivem: () => Promise<void>;
-  export let openUpdateModal: () => void;
-  export let playHoverSound: () => void;
+<!--
+  Settings.svelte — Секция настроек (путь к FiveM, информация о лаунчере)
+-->
+<script>
+  let {
+    fivemPath = "",
+    fivemFound = false,
+    updateInfo = {},
+    updateAvailable = false,
+    updateChecked = false,
+    serverOnline = false,
+    serverPlayers = 0,
+    serverMaxPlayers = 0,
+    selectFivemPath = async () => {},
+    autoFindFivem = async () => {},
+    openUpdateModal = () => {},
+    playHoverSound = () => {},
+  } = $props();
 </script>
 
 <div class="w-full max-w-lg px-8 z-10">
-  <h2
-    class="text-2xl mb-6 text-reveal"
-    style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;"
-  >
+  <h2 class="text-2xl mb-6 text-reveal" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.48px;">
     Настройки
   </h2>
 
   <!-- Путь к FiveM -->
   <div class="settings-card bg-white/5 rounded-lg p-5 mb-4 stagger-1">
-    <h3
-      class="text-sm font-semibold text-white/70 mb-3"
-      style="font-family: 'Proxima Nova Semibold', sans-serif;"
-    >
+    <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">
       Путь к FiveM
     </h3>
     <p class="text-xs text-white/30 mb-3">
       Укажите расположение FiveM.exe, если лаунчер не нашёл его автоматически.
     </p>
     <div class="flex items-center gap-2 mb-2">
-      <div
-        class="flex-1 bg-black/40 rounded-lg px-3 py-2 text-xs text-white/50 truncate border border-white/5"
-      >
+      <div class="flex-1 bg-black/40 rounded-lg px-3 py-2 text-xs text-white/50 truncate border border-white/5">
         {fivemPath || "Не найден"}
       </div>
       <button
@@ -69,13 +63,10 @@
 
   <!-- Информация -->
   <div class="settings-card bg-white/5 rounded-lg p-5 stagger-2">
-    <h3
-      class="text-sm font-semibold text-white/70 mb-3"
-      style="font-family: 'Proxima Nova Semibold', sans-serif;"
-    >
+    <h3 class="text-sm font-semibold text-white/70 mb-3" style="font-family: 'Proxima Nova Semibold', sans-serif;">
       О лаунчере
     </h3>
-    <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || "1.3.0"}</p>
+    <p class="text-xs text-white/60">ASTRA Launcher v{updateInfo.current_version || '...'}</p>
     <p class="text-xs text-white/60 mt-1">Сервер: 185.176.94.21:30120</p>
     {#if serverOnline}
       <p class="text-xs text-[#15ff00]/80 mt-1">Сервер онлайн — {serverPlayers}/{serverMaxPlayers}</p>

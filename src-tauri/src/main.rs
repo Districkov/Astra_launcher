@@ -29,11 +29,69 @@ static DISCORD_RPC: once_cell::sync::Lazy<Mutex<Option<DiscordIpcClient>>> = onc
 /// 🔧 КОНФИГУРАЦИЯ
 /// ─────────────────────────────────────────────
 
-/// IP:port вашего FiveM-сервера
-const SERVER_ADDRESS: &str = "185.176.94.21:30120";
+/// Дефолтные значения (используются если config.json не найден)
+const DEFAULT_SERVER_ADDRESS: &str = "185.176.94.21:30120";
+const DEFAULT_FIVEM_DOWNLOAD_URL: &str = "https://runtime.fivem.net/client/FiveM.exe";
+const DEFAULT_PRECACHE_URL: &str = "http://185.176.94.21/precache.zip";
 
-/// URL скачивания установщика FiveM (официальный с fivem.net)
-const FIVEM_DOWNLOAD_URL: &str = "https://runtime.fivem.net/client/FiveM.exe";
+/// Конфигурация лаунчера (читается из config.json при запуске)
+struct LauncherConfig {
+    server_address: String,
+    fivem_download_url: String,
+    precache_url: String,
+}
+
+impl LauncherConfig {
+    /// Загружает конфиг из %APPDATA%/astra-launcher/config.json
+    /// Если файл не найден — создаёт его с дефолтными значениями
+    fn load() -> Self {
+        let config_path = launcher_data_dir().join("config.json");
+
+        if config_path.exists() {
+            if let Ok(data) = fs::read_to_string(&config_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                    return Self {
+                        server_address: json.get("server_address")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(DEFAULT_SERVER_ADDRESS)
+                            .to_string(),
+                        fivem_download_url: json.get("fivem_download_url")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(DEFAULT_FIVEM_DOWNLOAD_URL)
+                            .to_string(),
+                        precache_url: json.get("precache_url")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(DEFAULT_PRECACHE_URL)
+                            .to_string(),
+                    };
+                }
+            }
+        }
+
+        // Файл не найден или битый — создаём с дефолтами
+        let config = Self {
+            server_address: DEFAULT_SERVER_ADDRESS.to_string(),
+            fivem_download_url: DEFAULT_FIVEM_DOWNLOAD_URL.to_string(),
+            precache_url: DEFAULT_PRECACHE_URL.to_string(),
+        };
+        config.save();
+        config
+    }
+
+    /// Сохраняет конфиг в файл
+    fn save(&self) {
+        let config_path = launcher_data_dir().join("config.json");
+        let json = serde_json::json!({
+            "server_address": self.server_address,
+            "fivem_download_url": self.fivem_download_url,
+            "precache_url": self.precache_url,
+        });
+        let _ = fs::write(&config_path, serde_json::to_string_pretty(&json).unwrap_or_default());
+    }
+}
+
+/// Глобальный конфиг (инициализируется один раз при старте)
+static CONFIG: once_cell::sync::Lazy<LauncherConfig> = once_cell::sync::Lazy::new(LauncherConfig::load);
 
 /// ─────────────────────────────────────────────
 /// 📁 ПУТИ
@@ -270,7 +328,7 @@ fn launch_game() -> Result<String, String> {
     // explorer.exe — это и есть "shell", FiveM видит его как родителя и не крашится
     #[cfg(target_os = "windows")]
     {
-        let url = format!("fivem://connect/{}", SERVER_ADDRESS);
+        let url = format!("fivem://connect/{}", CONFIG.server_address);
         Command::new("explorer.exe")
             .arg(&url)
             .creation_flags(0x00000008) // CREATE_NO_WINDOW
@@ -281,12 +339,12 @@ fn launch_game() -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
         Command::new(&exe_str)
-            .args(["+connect", SERVER_ADDRESS])
+            .args(["+connect", &CONFIG.server_address])
             .spawn()
             .map_err(|e| format!("Не удалось запустить FiveM: {}", e))?;
     }
 
-    Ok(format!("Подключение к {}", SERVER_ADDRESS))
+    Ok(format!("Подключение к {}", CONFIG.server_address))
 }
 
 /// ─────────────────────────────────────────────
@@ -311,7 +369,7 @@ async fn download_fivem(window: tauri::Window) -> Result<String, String> {
 
     let client = reqwest::Client::new();
     let response = client
-        .get(FIVEM_DOWNLOAD_URL)
+        .get(&CONFIG.fivem_download_url)
         .send()
         .await
         .map_err(|e| format!("Ошибка подключения: {}", e))?;
@@ -383,7 +441,7 @@ async fn get_server_status() -> Result<serde_json::Value, String> {
 
     // Запрашиваем info.json
     let info = match client
-        .get(format!("http://{}/info.json", SERVER_ADDRESS))
+        .get(format!("http://{}/info.json", CONFIG.server_address))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -394,7 +452,7 @@ async fn get_server_status() -> Result<serde_json::Value, String> {
 
     // Запрашиваем players.json
     let players = match client
-        .get(format!("http://{}/players.json", SERVER_ADDRESS))
+        .get(format!("http://{}/players.json", CONFIG.server_address))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -428,10 +486,7 @@ async fn get_server_status() -> Result<serde_json::Value, String> {
 /// � ПРЕДЗАГРУЗКА КЕША СЕРВЕРА
 /// ─────────────────────────────────────────────
 
-/// URL для скачивания кеша сервера (ZIP-архив)
-/// Замените на реальный URL вашего сервера
-const PRECACHE_URL: &str = "http://185.176.94.21/precache.zip";
-
+/// URL для скачивания кеша сервера — берётся из CONFIG (config.json)
 /// Путь к кешу FiveM: %LocalAppData%\FiveM\FiveM.app\data\server-cache-priv\
 fn fivem_server_cache_dir() -> Option<PathBuf> {
     let local_appdata = std::env::var("LOCALAPPDATA").ok()?;
@@ -500,7 +555,7 @@ async fn precache_server_files(window: tauri::Window) -> Result<serde_json::Valu
     // Скачиваем ZIP с прогрессом
     let client = reqwest::Client::new();
     let response = client
-        .get(PRECACHE_URL)
+        .get(&CONFIG.precache_url)
         .timeout(std::time::Duration::from_secs(300)) // 5 мин на скачивание
         .send()
         .await
@@ -676,6 +731,16 @@ fn close_embedded_webview(window: tauri::Window) -> Result<(), String> {
 ///  ИМЯ ПОЛЬЗОВАТЕЛЯ
 /// ─────────────────────────────────────────────
 
+/// Возвращает текущую конфигурацию лаунчера (для фронтенда)
+#[command]
+fn get_launcher_config() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "server_address": CONFIG.server_address,
+        "fivem_download_url": CONFIG.fivem_download_url,
+        "precache_url": CONFIG.precache_url,
+    }))
+}
+
 /// Получает имя пользователя из конфига FiveM.
 /// FiveM хранит имя в файле %AppData%\FiveM\FiveM.app\citizen\common\data\ или
 /// в реестре / кэше. Пробуем несколько вариантов.
@@ -778,7 +843,7 @@ async fn get_server_ping() -> Result<serde_json::Value, String> {
     use std::net::TcpStream;
     use std::time::Instant;
 
-    let addr = SERVER_ADDRESS;
+    let addr = CONFIG.server_address.clone();
     let start = Instant::now();
 
     match TcpStream::connect_timeout(
@@ -983,6 +1048,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // #9 — Системный трей
             let show_item = MenuItemBuilder::with_id("show", "Показать лаунчер").build(app)?;
@@ -1039,6 +1105,8 @@ fn main() {
             // Встроенный браузер
             create_embedded_webview,
             close_embedded_webview,
+            // Конфигурация
+            get_launcher_config,
             // Имя пользователя
             get_username,
             save_username,

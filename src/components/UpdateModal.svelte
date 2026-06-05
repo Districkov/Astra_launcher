@@ -1,54 +1,37 @@
-<script lang="ts">
-  import type { UpdateInfo } from "../types";
-
-  export let showUpdateModal: boolean;
-  export let updateInfo: UpdateInfo;
-  export let updateDownloading: boolean;
-  export let updateDownloadPercent: number;
-  export let updateDownloaded: number;
-  export let updateTotal: number;
-  export let updateError: string;
-
-  export let closeUpdateModal: () => void;
-  export let handleInstallUpdate: () => Promise<void>;
-  export let playHoverSound: () => void;
+<!--
+  UpdateModal.svelte — Модалка обновления
+  Показывает информацию об обновлении, прогресс скачивания, кнопки
+-->
+<script>
+  let {
+    show = false,
+    updateInfo = {},
+    updateDownloading = false,
+    updateDownloadPercent = 0,
+    updateDownloaded = 0,
+    updateTotal = 0,
+    updateError = "",
+    onStartDownload = () => {},
+    onClose = () => {},
+    playClickSound = () => {},
+    playHoverSound = () => {},
+  } = $props();
 </script>
 
-{#if showUpdateModal}
+{#if show}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
-    role="presentation"
-    onclick={closeUpdateModal}
-  >
+  <div class="absolute inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" role="presentation" onclick={onClose}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      role="dialog"
-      tabindex="0"
-      aria-labelledby="update-dialog-title"
-      aria-modal="true"
-      class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === "Escape") closeUpdateModal();
-      }}
-    >
+    <div role="dialog" tabindex="0" aria-labelledby="update-dialog-title" aria-modal="true" class="bg-[#1b1b1b] border border-white/10 rounded-xl px-8 py-6 max-w-md w-full shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
       <!-- Логотип ASTRA -->
       <div class="text-center mb-4">
-        <div
-          class="text-white tracking-[-0.8px] leading-none"
-          style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;"
-        >
+        <div class="text-white tracking-[-0.8px] leading-none" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; font-size: 28px;">
           ASTRA
         </div>
         <div class="mt-1.5 mx-auto w-[50px] h-[3px] bg-[#f64a46] rounded-full"></div>
       </div>
 
-      <h3
-        id="update-dialog-title"
-        class="text-lg text-white mb-1 text-center"
-        style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;"
-      >
+      <h3 id="update-dialog-title" class="text-lg text-white mb-1 text-center" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.36px;">
         🔄 Доступно обновление
       </h3>
       <p class="text-sm text-white/40 mb-4 text-center" style="font-family: 'Proxima Nova Semibold', sans-serif;">
@@ -75,34 +58,39 @@
             <span>{updateDownloadPercent}%</span>
           </div>
           <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-            <div
-              class="h-full bg-[#f64a46] rounded-full transition-all duration-300 progress-glow"
-              style="width: {updateDownloadPercent}%"
-            ></div>
+            <div class="h-full bg-[#f64a46] rounded-full transition-all duration-300 progress-glow" style="width: {updateDownloadPercent}%"></div>
           </div>
           {#if updateDownloaded > 0}
             <p class="text-[10px] text-white/20 mt-1">
-              {(updateDownloaded / 1048576).toFixed(1)} МБ{updateTotal > 0
-                ? ` / ${(updateTotal / 1048576).toFixed(1)} МБ`
-                : ""}
+              {(updateDownloaded / 1048576).toFixed(1)} МБ{updateTotal > 0 ? ` / ${(updateTotal / 1048576).toFixed(1)} МБ` : ''}
             </p>
           {/if}
         </div>
+        <div class="flex gap-3">
+          <button
+            class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
+            style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
+            onclick={onClose}
+            onmouseenter={playHoverSound}
+          >
+            Свернуть
+          </button>
+        </div>
       {:else}
-        <!-- Кнопки -->
+        <!-- Кнопка скачивания -->
         <div class="flex gap-3">
           <button
             class="flex-1 px-4 py-2.5 rounded-lg bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] text-sm text-white font-medium transition-all btn-ripple btn-bounce glow-hover"
             style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-            onclick={handleInstallUpdate}
+            onclick={onStartDownload}
             onmouseenter={playHoverSound}
           >
-            Скачать и установить
+            Обновить
           </button>
           <button
             class="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white/50 hover:text-white/70 font-medium transition-all border border-white/5 btn-ripple"
             style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-            onclick={closeUpdateModal}
+            onclick={onClose}
             onmouseenter={playHoverSound}
           >
             Позже
@@ -112,9 +100,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  :global(.progress-glow) {
-    box-shadow: 0 0 10px rgba(246, 74, 70, 0.6);
-  }
-</style>

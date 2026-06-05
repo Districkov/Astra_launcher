@@ -20,6 +20,7 @@
     "dialog:allow-ask",
     "dialog:allow-confirm",
     "notification:default",
-    "updater:default"
+    "updater:default",
+    "process:default"
   ]
 }
