@@ -130,18 +130,4 @@
   :global(.menu-item-active) {
     font-weight: 700 !important;
   }
-
-  :global(.menu-item::before) {
-    content: "";
-    position: absolute;
-    left: 0;
-    width: 3px;
-    height: 0;
-    background: #f64a46;
-    transition: height 0.3s ease;
-  }
-
-  :global(.menu-item-active::before) {
-    height: 100%;
-  }
 </style>

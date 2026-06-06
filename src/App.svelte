@@ -251,7 +251,7 @@
 </script>
 
 <!-- ── Корневой контейнер ── -->
-<svelte:window onmousemove={handleMouseMove} onkeydown={handleKeyDown} />
+<svelte:window onmousemove={handleMouseMove} onkeydown={handleKeyDown} oncontextmenu={(e) => e.preventDefault()} />
 
 <div class="astra-cursor relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 

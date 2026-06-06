@@ -146,9 +146,10 @@ body {
   content: '';
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 3px;
+  height: 22px;
   background: #f64a46;
   border-radius: 0 2px 2px 0;
   animation: menu-indicator-in 0.2s ease-out;
@@ -158,9 +159,10 @@ body {
   content: '';
   position: absolute;
   left: 0;
-  top: 10px;
-  bottom: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 2px;
+  height: 16px;
   background: rgba(246, 74, 70, 0.4);
   border-radius: 0 2px 2px 0;
   animation: menu-indicator-in 0.15s ease-out;
