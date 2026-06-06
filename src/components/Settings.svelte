@@ -8,13 +8,16 @@
     updateInfo = {},
     updateAvailable = false,
     updateChecked = false,
+    updateChecking = false,
     serverOnline = false,
     serverPlayers = 0,
     serverMaxPlayers = 0,
+    serverLoading = false,
     selectFivemPath = async () => {},
     autoFindFivem = async () => {},
     openUpdateModal = () => {},
     checkUpdates = async () => {},
+    refreshServerStatus = async () => {},
     playHoverSound = () => {},
   } = $props();
 </script>
@@ -71,9 +74,19 @@
     <p class="text-xs text-white/60 mt-1">Сервер: 185.176.94.21:30120</p>
     {#if serverOnline}
       <p class="text-xs text-[#15ff00]/80 mt-1">Сервер онлайн — {serverPlayers}/{serverMaxPlayers}</p>
+    {:else if serverLoading}
+      <p class="text-xs text-yellow-400/70 mt-1">Проверка статуса…</p>
     {:else}
       <p class="text-xs text-[#f64a46]/80 mt-1">Сервер офлайн</p>
     {/if}
+    <button
+      class="mt-2 px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs text-white/40 hover:text-white/60 transition-colors border border-white/5 btn-ripple"
+      onclick={refreshServerStatus}
+      onmouseenter={playHoverSound}
+      disabled={serverLoading}
+    >
+      {serverLoading ? "Обновление…" : "Обновить статус"}
+    </button>
     {#if updateAvailable}
       <div class="mt-3 p-3 rounded-lg bg-[#f64a46]/10 border border-[#f64a46]/20">
         <p class="text-xs text-[#ff8c8c] mb-2">🔄 Доступно обновление до v{updateInfo.latest_version}</p>
@@ -92,8 +105,9 @@
       class="mt-3 px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded text-xs text-white/50 hover:text-white/70 transition-colors border border-white/5 btn-ripple"
       onclick={checkUpdates}
       onmouseenter={playHoverSound}
+      disabled={updateChecking}
     >
-      Проверить обновления
+      {updateChecking ? "Проверка…" : "Проверить обновления"}
     </button>
   </div>
 </div>

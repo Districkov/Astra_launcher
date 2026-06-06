@@ -3,12 +3,18 @@
  * Svelte 5 runes-based store
  */
 
-let clickSound: { play: () => void; currentTime: number } | null = null;
-let hoverSound: { play: () => void; currentTime: number } | null = null;
+interface SoundObject {
+  play: () => void;
+  currentTime: number;
+}
+
+let clickSound: SoundObject | null = null;
+let hoverSound: SoundObject | null = null;
 
 function initAudio() {
   try {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioCtx = new AudioCtx();
 
     const generateClick = () => {
       const osc = audioCtx.createOscillator();
@@ -45,12 +51,12 @@ function initAudio() {
 
 function playClickSound() {
   if (!clickSound) return;
-  try { clickSound.play(); } catch (e) {}
+  try { clickSound.play(); } catch (_) {}
 }
 
 function playHoverSound() {
   if (!hoverSound) return;
-  try { hoverSound.play(); } catch (e) {}
+  try { hoverSound.play(); } catch (_) {}
 }
 
 export function getAudioStore() {

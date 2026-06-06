@@ -1,9 +1,11 @@
 /**
- * serverStore.svelte.ts — Статус сервера, пинг, обновления
+ * serverStore.svelte.ts — Статус сервера, пинг, уведомления
  * Svelte 5 runes-based store
  */
 import { invoke } from "@tauri-apps/api/core";
 import { TIMING } from "../constants";
+import { handleError } from "../errorHandling";
+import type { Notification, ServerStatusResponse, ServerPingResponse } from "../types";
 
 // ── Состояние сервера ──
 let serverOnline = $state(false);
@@ -16,14 +18,20 @@ let prevServerOnline = $state<boolean | null>(null);
 let offlineMode = $state(false);
 
 // ── Уведомления ──
-let notifications = $state<{ id: number; message: string; type: string }[]>([]);
+let notifications = $state<Notification[]>([]);
 let notificationId = 0;
 
-function addNotification(message: string, type = "info") {
+function addNotification(message: string, type: Notification["type"] = "info") {
   const id = ++notificationId;
-  notifications = [...notifications, { id, message, type }];
+  // Push + splice instead of spread — avoids re-creating the entire array
+  notifications.push({ id: String(id), message, type, timestamp: Date.now() });
+  notifications = notifications; // trigger reactivity
   setTimeout(() => {
-    notifications = notifications.filter(n => n.id !== id);
+    const idx = notifications.findIndex(n => n.id === String(id));
+    if (idx !== -1) {
+      notifications.splice(idx, 1);
+      notifications = notifications; // trigger reactivity
+    }
   }, TIMING.notificationTimeout);
 }
 
@@ -31,7 +39,7 @@ function addNotification(message: string, type = "info") {
 async function loadServerStatus() {
   if (!serverInitialized) serverLoading = true;
   try {
-    const status = await invoke("get_server_status") as any;
+    const status = await invoke<ServerStatusResponse>("get_server_status");
     const wasOnline = prevServerOnline;
     serverOnline = status.online;
     serverPlayers = status.players;
@@ -48,6 +56,7 @@ async function loadServerStatus() {
       }
     }
   } catch (e) {
+    handleError(e, "loadServerStatus");
     serverOnline = false;
     if (!serverInitialized) {
       offlineMode = true;
@@ -60,9 +69,10 @@ async function loadServerStatus() {
 
 async function loadServerPing() {
   try {
-    const result = await invoke("get_server_ping") as any;
+    const result = await invoke<ServerPingResponse>("get_server_ping");
     serverPing = result.ping || 0;
   } catch (e) {
+    handleError(e, "loadServerPing");
     serverPing = 0;
   }
 }

@@ -4,12 +4,15 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
-import { getServerStore } from "./serverStore.svelte";
-import { getFivemStore } from "./fivemStore.svelte";
-import { fmtSize } from "../constants";
+import { handleError } from "../errorHandling";
 
-const { addNotification } = getServerStore();
+// Lazy getters to avoid circular dependency at module load
+function getServerStore() {
+  return import("./serverStore.svelte").then(m => m.getServerStore());
+}
+function getFivemStore() {
+  return import("./fivemStore.svelte").then(m => m.getFivemStore());
+}
 
 let onboardingActive = $state(false);
 let onboardingStep = $state(1);
@@ -20,34 +23,34 @@ let onboardingNicknameSaving = $state(false);
 
 async function checkOnboarding() {
   try {
-    const complete = await invoke("is_onboarding_complete") as boolean;
+    const complete = await invoke<boolean>("is_onboarding_complete");
     if (!complete) {
       onboardingActive = true;
       onboardingStep = 1;
     }
   } catch (e) {
-    // По умолчанию — не показываем
+    handleError(e, "checkOnboarding");
   }
 }
 
 async function onboardingNext(playClickSound: () => void, username: { value: string }, setUsername: (v: string) => void) {
   playClickSound();
-  const fivem = getFivemStore();
+  const fivem = await getFivemStore();
 
   if (onboardingStep === 1) {
     onboardingStep = 2;
     onboardingFivemSearching = true;
     onboardingFivemResult = null;
     try {
-      const path = await invoke("auto_find_fivem") as string | null;
+      const path = await invoke<string | null>("auto_find_fivem");
       if (path) {
-        // Update fivem store state through its methods
         await fivem.loadFivemPath();
         onboardingFivemResult = 'found';
       } else {
         onboardingFivemResult = 'not_found';
       }
     } catch (e) {
+      handleError(e, "onboardingNext.autoFind");
       onboardingFivemResult = 'not_found';
     }
     onboardingFivemSearching = false;
@@ -59,10 +62,14 @@ async function onboardingNext(playClickSound: () => void, username: { value: str
     try {
       await invoke("save_username", { name });
       setUsername(name);
-    } catch (e) {}
+    } catch (e) {
+      handleError(e, "onboardingNext.saveUsername");
+    }
     try {
       await invoke("complete_onboarding");
-    } catch (e) {}
+    } catch (e) {
+      handleError(e, "onboardingNext.completeOnboarding");
+    }
     onboardingNicknameSaving = false;
     onboardingStep = 4;
   } else if (onboardingStep === 4) {
@@ -79,19 +86,29 @@ async function onboardingSelectFivem(playClickSound: () => void) {
     });
     if (selected) {
       await invoke("set_fivem_path", { path: selected });
-      await getFivemStore().loadFivemPath();
+      const fivem = await getFivemStore();
+      await fivem.loadFivemPath();
       onboardingFivemResult = 'found';
     }
-  } catch (e) {}
+  } catch (e) {
+    handleError(e, "onboardingSelectFivem");
+  }
 }
 
 async function onboardingDownloadFivem(playClickSound: () => void) {
   playClickSound();
-  const fivem = getFivemStore();
-  // Use the shared download function from fivemStore
+  const fivem = await getFivemStore();
   await fivem.downloadAndInstall(playClickSound);
-  // After download completes, check if installed
   onboardingFivemResult = fivem.found ? 'found' : null;
+}
+
+/** Go back one step, or close if on step 1 */
+function onboardingBack() {
+  if (onboardingStep > 1) {
+    onboardingStep--;
+  } else {
+    onboardingActive = false;
+  }
 }
 
 export function getOnboardingStore() {
@@ -109,5 +126,6 @@ export function getOnboardingStore() {
     onboardingNext,
     onboardingSelectFivem,
     onboardingDownloadFivem,
+    onboardingBack,
   };
 }

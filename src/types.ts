@@ -26,7 +26,7 @@ export interface UpdateInfo {
 export interface Notification {
   id: string;
   message: string;
-  type: "info" | "success" | "error" | "warning";
+  type: "info" | "success" | "error" | "warning" | "update";
   timestamp: number;
   duration?: number;
 }
@@ -64,3 +64,67 @@ export interface App {
   username: string;
   menuItems: MenuItem[];
 }
+
+// ── Tauri Command Response Types ──
+
+export interface ServerStatusResponse {
+  online: boolean;
+  players: number;
+  max_players: number;
+  info: Record<string, unknown> | null;
+}
+
+export interface ServerPingResponse {
+  ping: number;
+  error?: string;
+}
+
+export interface PrecacheCheckResponse {
+  needed: boolean;
+  reason: string;
+  cache_files?: number;
+  cache_size_mb?: number;
+}
+
+export interface PrecacheResultResponse {
+  success: boolean;
+  extracted_files: number;
+  cache_dir: string;
+}
+
+export interface DownloadProgressPayload {
+  downloaded: number;
+  total: number;
+  percent: number;
+}
+
+export interface PrecacheProgressPayload {
+  phase: "download" | "extract";
+  downloaded?: number;
+  total?: number;
+  percent: number;
+  extracted?: number;
+  total_files?: number;
+}
+
+export interface LauncherConfigResponse {
+  server_address: string;
+  fivem_download_url: string;
+  precache_url: string;
+}
+
+export interface GalleryUploadResponse {
+  id: string;
+  url: string;
+  thumb: string;
+  author: string;
+  timestamp: number;
+}
+
+export type UpdateEventPayload = {
+  event: "Started" | "Progress" | "Finished";
+  data: {
+    contentLength?: number;
+    chunkLength?: number;
+  };
+};

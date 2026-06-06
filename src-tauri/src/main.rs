@@ -336,15 +336,26 @@ fn set_fivem_path(path: String) -> Result<(), String> {
 }
 
 /// Автоматический поиск FiveM.exe — ищет и сохраняет путь, если найден
+/// Читает существующий settings.json и обновляет только поле fivem_path
 #[command]
 fn auto_find_fivem() -> Result<Option<String>, String> {
     match find_fivem_exe() {
         Some(path) => {
             let path_str = path.to_string_lossy().to_string();
-            let settings = serde_json::json!({
-                "fivem_path": &path_str
-            });
-            let _ = fs::write(settings_path(), serde_json::to_string_pretty(&settings).unwrap());
+            let sp = settings_path();
+
+            // Read existing settings and merge — don't overwrite other fields
+            let mut settings: serde_json::Value = if sp.exists() {
+                fs::read_to_string(&sp)
+                    .ok()
+                    .and_then(|data| serde_json::from_str(&data).ok())
+                    .unwrap_or(serde_json::json!({}))
+            } else {
+                serde_json::json!({})
+            };
+
+            settings["fivem_path"] = serde_json::Value::String(path_str.clone());
+            let _ = fs::write(&sp, serde_json::to_string_pretty(&settings).unwrap());
             Ok(Some(path_str))
         }
         None => Ok(None),

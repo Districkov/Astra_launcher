@@ -68,7 +68,7 @@
   // Параллакс — смещение фона при движении мыши (throttled via rAF)
   let parallaxX = $state(0);
   let parallaxY = $state(0);
-  let parallaxRafId = $state(0);
+  let parallaxRafId = 0; // not reactive — plain variable for rAF throttling
 
   // DPI масштаб для ASTRA текста на 2K/4K
   let dpiScale = $state(1);
@@ -90,7 +90,7 @@
       if (showCloseConfirm) { showCloseConfirm = false; return; }
       if (showLogoutConfirm) { showLogoutConfirm = false; return; }
       if (update.showModal) { update.closeUpdateModal(audio.playClickSound); return; }
-      if (onboarding.active && onboarding.step > 1) { onboarding.step--; return; }
+      if (onboarding.active) { onboarding.onboardingBack(); return; }
     }
   }
 
@@ -129,8 +129,6 @@
   ];
 
   // ── Делегированные функции (stores) ─────────────
-  const playClickSound = audio.playClickSound;
-  const playHoverSound = audio.playHoverSound;
   const addNotification = server.addNotification;
 
   // ── #9 Имя пользователя ────────────────────────
@@ -208,6 +206,8 @@
     previousMenu = activeMenu;
     activeMenu = id;
     pageTransition = "fade-in";
+    // Reset transition after animation completes
+    setTimeout(() => { pageTransition = ""; }, TIMING.transitionDuration);
 
     if (id === "settings") {
       fivem.loadFivemPath();
@@ -220,7 +220,7 @@
     dpiScale = window.devicePixelRatio || 1;
 
     // Получаем версию приложения из Tauri
-    getVersion().then(v => { update.info.current_version = v; }).catch(() => {});
+    getVersion().then(v => { update.setCurrentVersion(v); }).catch(() => {});
 
     initParticles();
     setTimeout(() => { launcherReady = true; }, TIMING.launcherReadyDelay);
@@ -230,7 +230,7 @@
 
     server.loadServerStatus();
     fivem.loadFivemPath();
-    fivem.autoFindFivem(audio.playClickSound);
+    fivem.autoFindFivem(); // No sound on auto-search at startup
     loadUsername();
     server.loadServerPing();
     update.checkUpdates();
@@ -356,13 +356,16 @@
         updateInfo={update.info}
         updateAvailable={update.available}
         updateChecked={update.checked}
+        updateChecking={update.checking}
         serverOnline={server.online}
         serverPlayers={server.players}
         serverMaxPlayers={server.maxPlayers}
+        serverLoading={server.loading}
         selectFivemPath={() => fivem.selectFivemPath(audio.playClickSound)}
         autoFindFivem={() => fivem.autoFindFivem(audio.playClickSound)}
         openUpdateModal={() => update.openUpdateModal(audio.playClickSound)}
         checkUpdates={() => update.checkUpdates()}
+        refreshServerStatus={() => server.refreshServerStatus()}
         playHoverSound={audio.playHoverSound}
       />
 

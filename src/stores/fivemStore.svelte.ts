@@ -5,10 +5,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { getServerStore } from "./serverStore.svelte";
+import { handleError } from "../errorHandling";
 import { fmtSize, TIMING } from "../constants";
+import type { DownloadProgressPayload, PrecacheProgressPayload, PrecacheCheckResponse, LaunchPhase } from "../types";
 
-const { addNotification } = getServerStore();
+// Lazy getter to avoid circular dependency at module load
+function getServerStore() {
+  return import("./serverStore.svelte").then(m => m.getServerStore());
+}
 
 // ── FiveM путь ──
 let fivemPath = $state("");
@@ -34,32 +38,29 @@ let statusMessage = $state("");
 let launchPhase = $state(0);
 let launchProgress = $state(0);
 
-const launchPhases = [
+const launchPhases: LaunchPhase[] = [
   { label: "Проверка клиента", icon: "check" },
   { label: "Подключение к серверу", icon: "connect" },
   { label: "Загрузка ресурсов", icon: "download" },
   { label: "Запуск FiveM", icon: "play" },
 ];
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // ── Загрузка пути FiveM ──
 async function loadFivemPath() {
   try {
-    const path = await invoke("get_fivem_path") as string;
+    const path = await invoke<string>("get_fivem_path");
     fivemPath = path;
     fivemFound = !!path;
   } catch (e) {
+    handleError(e, "loadFivemPath");
     fivemFound = false;
   }
 }
 
-async function autoFindFivem(playClickSound: () => void) {
-  playClickSound();
+async function autoFindFivem(playClickSound?: () => void) {
+  playClickSound?.();
   try {
-    const path = await invoke("auto_find_fivem") as string | null;
+    const path = await invoke<string | null>("auto_find_fivem");
     if (path) {
       fivemPath = path;
       fivemFound = true;
@@ -70,6 +71,7 @@ async function autoFindFivem(playClickSound: () => void) {
       setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout);
     }
   } catch (e) {
+    handleError(e, "autoFindFivem");
     statusMessage = "Автопоиск недоступен";
     setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout);
   }
@@ -90,7 +92,7 @@ async function selectFivemPath(playClickSound: () => void) {
       setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout);
     }
   } catch (e) {
-    // dialog error
+    handleError(e, "selectFivemPath");
   }
 }
 
@@ -103,7 +105,7 @@ async function downloadAndInstall(playClickSound: () => void) {
   downloadSize = "";
   downloadError = "";
   try {
-    const unlisten = await listen("download-progress", (event: any) => {
+    const unlisten = await listen<DownloadProgressPayload>("download-progress", (event) => {
       const { downloaded, total, percent } = event.payload;
       downloadPercent = percent;
       downloadSize = total > 0 ? `${fmtSize(downloaded)} / ${fmtSize(total)}` : fmtSize(downloaded);
@@ -125,7 +127,7 @@ async function downloadAndInstall(playClickSound: () => void) {
           setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 2000);
           return;
         }
-        const installed = await invoke("check_fivem_installed") as boolean;
+        const installed = await invoke<boolean>("check_fivem_installed");
         if (installed) {
           clearInterval(poll);
           await loadFivemPath();
@@ -133,9 +135,12 @@ async function downloadAndInstall(playClickSound: () => void) {
           statusMessage = "FiveM установлен ✓";
           setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout);
         }
-      } catch (e) {}
+      } catch (e) {
+        handleError(e, "downloadAndInstall.poll");
+      }
     }, 3000);
   } catch (error) {
+    handleError(error, "downloadAndInstall");
     downloadError = `${error}`;
     isDownloading = false;
   }
@@ -150,15 +155,20 @@ async function checkFivemAgain(playClickSound: () => void) {
 async function handlePlay(playClickSound: () => void, serverOnline: boolean, setDiscordRpcPlaying: () => Promise<void>) {
   playClickSound();
   if (isLaunching) return;
+
+  // Check if FiveM is found before attempting launch
+  if (!fivemFound) {
+    statusMessage = "FiveM не найден. Укажите путь в настройках.";
+    setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 1000);
+    return;
+  }
+
   isLaunching = true;
   launchPhase = 1;
-  launchProgress = 0;
-
   launchProgress = 5;
-  await sleep(300);
 
   try {
-    const check = await invoke("check_precache_needed") as any;
+    const check = await invoke<PrecacheCheckResponse>("check_precache_needed");
     precacheNeeded = check.needed;
 
     if (check.needed) {
@@ -166,14 +176,14 @@ async function handlePlay(playClickSound: () => void, serverOnline: boolean, set
       precacheDownloading = true;
       precachePercent = 0;
 
-      const unlisten = await listen("precache-progress", (event: any) => {
-        const { phase, downloaded, total, percent, extracted, total_files } = event.payload;
+      const unlisten = await listen<PrecacheProgressPayload>("precache-progress", (event) => {
+        const { phase, downloaded, total, percent } = event.payload;
         if (phase === "download") {
           precacheDownloading = true;
           precacheExtracting = false;
           precachePercent = percent;
-          precacheDownloaded = fmtSize(downloaded);
-          precacheTotal = total > 0 ? fmtSize(total) : "";
+          precacheDownloaded = fmtSize(downloaded ?? 0);
+          precacheTotal = (total ?? 0) > 0 ? fmtSize(total ?? 0) : "";
           launchProgress = 5 + Math.round(percent * 0.35);
         } else if (phase === "extract") {
           precacheDownloading = false;
@@ -187,7 +197,8 @@ async function handlePlay(playClickSound: () => void, serverOnline: boolean, set
         await invoke("precache_server_files");
         precacheNeeded = false;
       } catch (error) {
-        addNotification("⚠️ Предзагрузка не удалась: " + error, "error");
+        const server = await getServerStore();
+        server.addNotification("⚠️ Предзагрузка не удалась: " + error, "error");
       }
 
       unlisten();
@@ -197,6 +208,7 @@ async function handlePlay(playClickSound: () => void, serverOnline: boolean, set
 
     launchProgress = 50;
   } catch (e) {
+    handleError(e, "handlePlay.precache");
     launchProgress = 25;
   }
 
@@ -205,32 +217,28 @@ async function handlePlay(playClickSound: () => void, serverOnline: boolean, set
   try {
     await invoke("launch_game");
     launchProgress = 70;
-  } catch (error: any) {
+  } catch (error: unknown) {
     launchPhase = 0;
     launchProgress = 0;
     isLaunching = false;
     precacheDownloading = false;
     precacheExtracting = false;
-    if (error === "FIVEM_NOT_FOUND") {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    if (errMsg === "FIVEM_NOT_FOUND") {
       statusMessage = "FiveM не найден. Укажите путь в настройках.";
     } else {
-      statusMessage = `Ошибка: ${error}`;
+      statusMessage = `Ошибка: ${errMsg}`;
     }
+    handleError(error, "handlePlay.launch");
     setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 1000);
     return;
   }
 
+  // Real launch phases — no fake sleep delays
   launchPhase = 3;
   launchProgress = 75;
-  await sleep(400);
-  launchProgress = 85;
-  await sleep(300);
-
   launchPhase = 4;
-  launchProgress = 95;
-  await sleep(300);
   launchProgress = 100;
-  await sleep(300);
 
   launchPhase = 0;
   launchProgress = 0;
@@ -261,7 +269,6 @@ export function getFivemStore() {
     get launchPhase() { return launchPhase; },
     get launchProgress() { return launchProgress; },
     get launchPhases() { return launchPhases; },
-    fmtSize,
     loadFivemPath,
     autoFindFivem,
     selectFivemPath,
