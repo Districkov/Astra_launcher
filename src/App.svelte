@@ -27,6 +27,7 @@
   import { getFivemStore } from "./stores/fivemStore.svelte";
   import { getAudioStore } from "./stores/audioStore.svelte";
   import { getOnboardingStore } from "./stores/onboardingStore.svelte";
+  import { getStoreStore } from "./stores/storeStore.svelte";
   import Background from "./components/Background.svelte";
   import Notifications from "./components/Notifications.svelte";
   import UpdateIndicator from "./components/UpdateIndicator.svelte";
@@ -37,6 +38,7 @@
   import Sidebar from "./components/Sidebar.svelte";
   import Settings from "./components/Settings.svelte";
   import PlaySection from "./components/PlaySection.svelte";
+  import StoreSection from "./components/StoreSection.svelte";
   import OnboardingModal from "./components/OnboardingModal.svelte";
 
   // ── Store instances ────────────────────────────
@@ -45,6 +47,7 @@
   const fivem = getFivemStore();
   const audio = getAudioStore();
   const onboarding = getOnboardingStore();
+  const store = getStoreStore();
 
   let appWindow;
   try {
@@ -396,15 +399,24 @@
         playHoverSound={audio.playHoverSound}
       />
 
+    {:else if activeMenu === "store"}
+      <!-- ═══════════════════════════════════════
+           СЕКЦИЯ: МАГАЗИН
+           ═══════════════════════════════════════ -->
+      <StoreSection
+        {store}
+        playClickSound={audio.playClickSound}
+        playHoverSound={audio.playHoverSound}
+        openEmbeddedBrowser={openEmbeddedBrowser}
+      />
+
     {:else}
       <!-- ═══════════════════════════════════════
-           ЗАГЛУШКА (Магазин/Форум)
+           ЗАГЛУШКА (Форум/Discord)
            ═══════════════════════════════════════ -->
       <div class="z-10 text-center">
         <div class="mb-4 flex justify-center">
-          {#if activeMenu === 'store'}
-            <svg class="w-16 h-16 text-white/30" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M0.75 14.75H14.75M10.08 4.64C10.08 5.26 10.33 5.85 10.77 6.29C11.2 6.73 11.8 6.97 12.42 6.97C13.04 6.97 13.63 6.73 14.07 6.29C14.5 5.85 14.75 5.26 14.75 4.64V3.86L13.19 0.75H2.31L0.75 3.86V4.64C0.75 5.26 1 5.85 1.43 6.29C1.87 6.73 2.46 6.97 3.08 6.97C3.7 6.97 4.3 6.73 4.73 6.29C5.17 5.85 5.42 5.26 5.42 4.64M5.42 3.86V4.64C5.42 5.26 5.66 5.85 6.1 6.29C6.54 6.73 7.13 6.97 7.75 6.97C8.37 6.97 8.96 6.73 9.4 6.29C9.84 5.85 10.08 5.26 10.08 4.64V3.86M2.31 14.75V6.86M13.19 14.75V6.86M5.42 14.75V11.64C5.42 11.23 5.58 10.83 5.87 10.54C6.16 10.25 6.56 10.08 6.97 10.08H8.53C8.94 10.08 9.34 10.25 9.63 10.54C9.92 10.83 10.08 11.23 10.08 11.64V14.75"/></svg>
-          {:else if activeMenu === 'forum'}
+          {#if activeMenu === 'forum'}
             <svg class="w-16 h-16 text-white/30" viewBox="0 0 16 15" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M4.74 4.67H10.96M4.74 7.73H9.41M5.52 11.56H3.18C2.56 11.56 1.97 11.31 1.53 10.88C1.1 10.45 0.85 9.87 0.85 9.26V3.14C0.85 2.54 1.1 1.95 1.53 1.52C1.97 1.09 2.56 0.85 3.18 0.85H12.52C13.14 0.85 13.73 1.09 14.17 1.52C14.6 1.95 14.85 2.54 14.85 3.14V9.26C14.85 9.87 14.6 10.45 14.17 10.88C13.73 11.31 13.14 11.56 12.52 11.56H10.18L7.85 13.85L5.52 11.56Z"/></svg>
           {:else}
             <svg class="w-16 h-16 text-white/30" viewBox="0 0 14 13" fill="currentColor"><path d="M12.66 4.59C11.4 4.59 10.88 3.7 11.51 2.62C11.87 2 11.66 1.2 11.02 0.84L9.81 0.16C9.26 -0.17 8.54 0.03 8.21 0.57L8.14 0.7C7.51 1.78 6.47 1.78 5.84 0.7L5.76 0.57C5.44 0.03 4.73 -0.17 4.18 0.16L2.97 0.84C2.33 1.2 2.11 2 2.48 2.63C3.11 3.7 2.6 4.59 1.33 4.59C0.6 4.59 0 5.17 0 5.89V7.11C0 7.82 0.59 8.41 1.33 8.41C2.6 8.41 3.11 9.3 2.48 10.38C2.11 11 2.33 11.8 2.97 12.16L4.18 12.84C4.73 13.17 5.44 12.97 5.77 12.43L5.85 12.3C6.48 11.22 7.51 11.22 8.15 12.3L8.23 12.43C8.56 12.97 9.27 13.17 9.82 12.84L11.03 12.16C11.67 11.8 11.89 11 11.52 10.38C10.89 9.3 11.4 8.41 12.67 8.41C13.4 8.41 14 7.83 14 7.11V5.89C14 5.18 13.4 4.59 12.66 4.59ZM7 8.74C5.74 8.74 4.72 7.73 4.72 6.5C4.72 5.27 5.74 4.26 7 4.26C8.25 4.26 9.27 5.27 9.27 6.5C9.27 7.73 8.25 8.74 7 8.74Z"/></svg>

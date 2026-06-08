@@ -98,6 +98,28 @@ export interface DownloadProgressPayload {
   percent: number;
 }
 
+// ── Store / Магазин ──
+
+export type StoreCategory = "donate" | "transport" | "property";
+
+export interface StoreItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;           // в рублях
+  oldPrice?: number;       // старая цена (для скидки)
+  category: StoreCategory;
+  image?: string;          // URL или путь к картинке
+  badge?: string;          // "Хит", "Скидка", "Новинка" и т.д.
+  popular?: boolean;       // популярный товар
+  paymentUrl?: string;     // ссылка на платёжный шлюз
+}
+
+export interface StoreCart {
+  items: StoreItem[];
+  totalPrice: number;
+}
+
 export interface PrecacheProgressPayload {
   phase: "download" | "extract";
   downloaded?: number;

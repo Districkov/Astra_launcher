@@ -298,9 +298,43 @@ fn search_exe_recursive(dir: &PathBuf, max_depth: u32) -> Option<PathBuf> {
 /// ─────────────────────────────────────────────
 
 /// Проверяет, установлен ли FiveM.
+/// Проверяет не только наличие FiveM.exe, но и что установка завершена
+/// (папка FiveM.app содержит файлы — признак полной установки).
 #[command]
 fn check_fivem_installed() -> Result<bool, String> {
-    Ok(find_fivem_exe().is_some())
+    let exe_path = match find_fivem_exe() {
+        Some(p) => p,
+        None => return Ok(false),
+    };
+
+    // FiveM.exe найден — проверяем, что установка завершена
+    // Если FiveM.exe в папке FiveM\, проверяем что FiveM.app не пустая
+    if let Some(parent) = exe_path.parent() {
+        let app_dir = parent.join("FiveM.app");
+        if app_dir.exists() {
+            // Проверяем что в FiveM.app есть хотя бы несколько файлов
+            if let Ok(entries) = fs::read_dir(&app_dir) {
+                let count = entries.count();
+                if count > 5 {
+                    // Установка завершена — в папке достаточно файлов
+                    return Ok(true);
+                }
+            }
+        }
+        // Если FiveM.app нет или пустая — возможно установка не завершена
+        // Но FiveM.exe может быть и без FiveM.app (редкие случаи)
+        // Проверяем размер самого exe
+        if let Ok(meta) = fs::metadata(&exe_path) {
+            if meta.len() > 4_000_000 {
+                // FiveM.exe > 4 МБ — полноценная установка
+                return Ok(true);
+            }
+        }
+    }
+
+    // FiveM.exe найден, но похоже что установка не завершена
+    log_info!("check_fivem_installed: FiveM.exe найден, но установка может быть неполной");
+    Ok(false)
 }
 
 /// Возвращает текущий путь к FiveM.exe (или пустую строку если не найден)

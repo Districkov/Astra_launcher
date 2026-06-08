@@ -1,1 +1,11 @@
-{"version":"1.8.1","notes":"v1.8.1 — ПКМ отключён, полоска меню по центру, параллакс звёзд убран","pub_date":"2026-06-06T17:00:00Z","platforms":{"windows-x86_64":{"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYjN6czBpZGVtdFM4cjArYTY5cU04Q21kc21pVkJ5enB0Z0lXdVJvbmZBODNUVGdVTklvZzhYbHZZSmJoT09pM05jWjdYRFZHUkFKODJmVUpIUGEzSUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNzQzMzIzCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS44LjFfeDY0LXNldHVwLmV4ZQpwZ1pDeFdKNDdSZUJMNDdqRzNBODhBTzYrUW5ydTZKbkU5YU9PcWxZbytrNEkyNGtwb2g1bWZHUkRSNEpucjBRZU8rRDNDR0tVSXJRVVlteXFQSFREUT09Cg==","url":"https://github.com/Districkov/Astra_launcher/releases/download/v1.8.1/ASTRA.Launcher_1.8.1_x64-setup.exe"}}}
+{
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYndZRUdCUXdEaTl2VitpcDJxOTd6QnYxbnBCVmNZeXVML2RlejdPTWtrMGdINmhCelhmTGM4a2dwMkg5NVgyUS9JbzJid2tWQzhsWi94VnVuTVluZEFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTQ4MTI2CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjBfeDY0LXNldHVwLmV4ZQpwUTd4aFZURmt1b0o1cUxBWEJDZVA2SjU1S1dvTzYvN1JmQURsMDBWSTNxMTFIUGR3YW9iYVF6YXNPU2RrTWN3NDk4aDdXakFoMFpjSXZGZVc4enRBQT09Cg==",
+                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.0_x64-setup.exe"
+                                         }
+                  },
+    "pub_date":  "2026-06-08T19:49:02Z",
+    "version":  "1.9.0",
+    "notes":  "## v1.9.0\n\n- 🛒 Магазин: каталог товаров, корзина, оплата одним окном\n- 🔧 Улучшена проверка установки FiveM (определяет неполную установку)\n- ⚠️ Предупреждение об антивирусе при установке FiveM\n- 🐛 Исправлены ошибки"
+}

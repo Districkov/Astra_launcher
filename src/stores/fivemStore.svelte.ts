@@ -115,7 +115,7 @@ async function downloadAndInstall(playClickSound: () => void) {
     downloadPercent = 100;
     downloadSize = "Запуск установщика…";
     await invoke("launch_fivem_installer");
-    statusMessage = "Установщик запущен. Дождитесь установки, затем нажмите «Проверить».";
+    statusMessage = "Установщик FiveM запущен. Дождитесь полной установки (папка должна заполниться файлами). Если папка пустая — отключите антивирус и повторите. Затем нажмите «Проверить».";
     const pollStart = Date.now();
     const POLL_TIMEOUT = TIMING.installerPollTimeout;
     const poll = setInterval(async () => {
