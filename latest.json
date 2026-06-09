@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYnlYRHVIYXJick5YVzlUV0NkYVVpZXAycGhNblg4cTM0N0d0ZHNUQXBSK3U4RnlpYzNkUHZTSmt6SXdHR3E0WU5zd24zcE8yM2loYWNLVnlNWWxMSmdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk2MjYxCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjFfeDY0LXNldHVwLmV4ZQpxdUxIcEVGbFNybTV2K3haMnE2OVhlOWxTQlo2c0RtbXIwVzVqamx5WGlWeEhvTU1FSjBqR0srN1ZOak9sNHhiRHNQeHdvclBnR2crSy92UUVnYVFEZz09Cg==",
-                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.1_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYjgwZkk1WDlwcnhGVmdJdkNhUXkrSnNUZzM1eWxDbmZEUGt5TnMvMlN6N2g4VERueXp2VDBMbkVPZ0lMdXBsdk9uMzdVMkxkcE1ZczVQWTZLM3JCR0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk2NTkwCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjJfeDY0LXNldHVwLmV4ZQpYbzdSY0xJc21Xb2tad2lWbEYzQWJWaERrSEE3LzYzbjI4RGM4SmtOVGNSZHVIb1RlTjlMWmNLSUVCOHYyWHZtcytuUGZnc1lIbXlhbW9NQzEvQk9DZz09Cg==",
+                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.2_x64-setup.exe"
                                          }
                   },
-    "pub_date":  "2026-06-09T09:11:22Z",
-    "version":  "1.9.1",
-    "notes":  "## v1.9.1\n\n- 🛡️ Автоматическое добавление исключения Windows Defender для FiveM и Astra Launcher\n- 🔧 Улучшена проверка установки FiveM\n- 🛒 Магазин: каталог, корзина, оплата"
+    "pub_date":  "2026-06-09T09:16:42Z",
+    "version":  "1.9.2",
+    "notes":  "## v1.9.2\n\n- Fixed: Defender exclusion now works correctly (was broken due to encoding issue)\n- Adds Windows Defender exclusion for FiveM and Astra Launcher folders"
 }

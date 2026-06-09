@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use base64::Engine;
 
 /// ─────────────────────────────────────────────
 /// 📝 ЛОГИРОВАНИЕ В ФАЙЛ
@@ -526,19 +525,25 @@ fn add_defender_exclusion() -> Result<String, String> {
         .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\ASTRA Launcher"));
     let astra_dir_str = astra_dir.to_string_lossy().to_string();
 
-    // Добавляем исключения и для FiveM, и для Astra Launcher
-    let inner_script = format!(
+    // Записываем скрипт во временный .ps1 файл
+    let ps1_content = format!(
         "Add-MpPreference -ExclusionPath '{}'; Add-MpPreference -ExclusionPath '{}'",
         fivem_dir_str.replace('\'', "''"),
         astra_dir_str.replace('\'', "''")
     );
 
-    // Кодируем скрипт в Base64 для передачи через -EncodedCommand
-    let encoded = base64::engine::general_purpose::STANDARD.encode(inner_script.as_bytes());
+    let temp_dir = std::env::temp_dir();
+    let ps1_path = temp_dir.join("astra_defender_exclusion.ps1");
+    fs::write(&ps1_path, &ps1_content)
+        .map_err(|e| format!("Не удалось создать временный файл: {}", e))?;
 
+    let ps1_path_str = ps1_path.to_string_lossy().to_string();
+
+    // Запускаем скрипт с правами админа через UAC
+    // -ExecutionPolicy Bypass чтобы обойти политику выполнения скриптов
     let script = format!(
-        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','{}' -Wait",
-        encoded
+        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','{}' -Wait",
+        ps1_path_str
     );
 
     let output = Command::new("powershell")
@@ -546,6 +551,9 @@ fn add_defender_exclusion() -> Result<String, String> {
         .creation_flags(0x00000008) // CREATE_NO_WINDOW
         .output()
         .map_err(|e| format!("Не удалось запустить PowerShell: {}", e))?;
+
+    // Удаляем временный файл
+    let _ = fs::remove_file(&ps1_path);
 
     if output.status.success() {
         log_info!("add_defender_exclusion: исключения добавлены для {} и {}", fivem_dir_str, astra_dir_str);
