@@ -17,7 +17,7 @@ use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use std::sync::Mutex;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -296,6 +296,100 @@ fn search_exe_recursive(dir: &PathBuf, max_depth: u32) -> Option<PathBuf> {
 /// ─────────────────────────────────────────────
 /// 🎮 КОМАНДЫ: ПРОВЕРКА / ЗАПУСК FIVEM
 /// ─────────────────────────────────────────────
+
+/// Диагностика установки FiveM — возвращает подробную информацию о папке
+#[command]
+fn diagnose_fivem_install() -> Result<serde_json::Value, String> {
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| "?".to_string());
+    let fivem_dir = PathBuf::from(&local_appdata).join("FiveM");
+
+    let mut info = serde_json::json!({
+        "fivem_dir": fivem_dir.to_string_lossy(),
+        "fivem_dir_exists": fivem_dir.exists(),
+    });
+
+    if fivem_dir.exists() {
+        // Считаем файлы в папке FiveM
+        let mut file_count: usize = 0;
+        let mut total_size: u64 = 0;
+        fn count_files(dir: &Path, count: &mut usize, size: &mut u64) {
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        count_files(&path, count, size);
+                    } else {
+                        *count += 1;
+                        if let Ok(meta) = fs::metadata(&path) {
+                            *size += meta.len();
+                        }
+                    }
+                }
+            }
+        }
+        count_files(&fivem_dir, &mut file_count, &mut total_size);
+
+        info["file_count"] = serde_json::json!(file_count);
+        info["total_size_mb"] = serde_json::json!((total_size as f64 / 1_048_576.0).round());
+
+        // Проверяем FiveM.exe
+        let fivem_exe = fivem_dir.join("FiveM.exe");
+        info["fivem_exe_exists"] = serde_json::json!(fivem_exe.exists());
+        if fivem_exe.exists() {
+            if let Ok(meta) = fs::metadata(&fivem_exe) {
+                info["fivem_exe_size_mb"] = serde_json::json!((meta.len() as f64 / 1_048_576.0).round());
+            }
+        }
+
+        // Проверяем FiveM.app
+        let app_dir = fivem_dir.join("FiveM.app");
+        info["fivem_app_exists"] = serde_json::json!(app_dir.exists());
+        if app_dir.exists() {
+            let mut app_count: usize = 0;
+            let mut app_size: u64 = 0;
+            count_files(&app_dir, &mut app_count, &mut app_size);
+            info["fivem_app_file_count"] = serde_json::json!(app_count);
+            info["fivem_app_size_mb"] = serde_json::json!((app_size as f64 / 1_048_576.0).round());
+        }
+
+        // Список верхнеуровневых файлов/папок
+        let mut top_entries: Vec<String> = Vec::new();
+        if let Ok(entries) = fs::read_dir(&fivem_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let is_dir = entry.path().is_dir();
+                top_entries.push(if is_dir { format!("{}/", name) } else { name });
+            }
+        }
+        info["top_entries"] = serde_json::json!(top_entries);
+    }
+
+    // Проверяем установщик
+    let installer = fivem_installer_path();
+    info["installer_path"] = serde_json::json!(installer.to_string_lossy());
+    info["installer_exists"] = serde_json::json!(installer.exists());
+    if installer.exists() {
+        if let Ok(meta) = fs::metadata(&installer) {
+            info["installer_size_mb"] = serde_json::json!((meta.len() as f64 / 1_048_576.0).round());
+        }
+    }
+
+    // Проверяем запущен ли процесс FiveM
+    let check_script = r#"Get-Process | Where-Object { $_.ProcessName -match 'FiveM' } | Select-Object -First 5 | ForEach-Object { "$($_.ProcessName) (PID: $($_.Id))" }"#;
+    let check_output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", check_script])
+        .creation_flags(0x00000008)
+        .output()
+        .ok();
+    let processes = check_output
+        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None })
+        .unwrap_or_default();
+    info["fivem_processes"] = serde_json::json!(processes);
+
+    log_info!("diagnose_fivem_install: {}", serde_json::to_string_pretty(&info).unwrap_or_default());
+
+    Ok(info)
+}
 
 /// Проверяет, установлен ли FiveM.
 /// Проверяет не только наличие FiveM.exe, но и что установка завершена
@@ -1314,6 +1408,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             // Splash / установка
+            diagnose_fivem_install,
             check_fivem_installed,
             get_fivem_path,
             set_fivem_path,

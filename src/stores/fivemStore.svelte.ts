@@ -180,7 +180,40 @@ async function downloadAndInstall(playClickSound: () => void) {
 
 async function checkFivemAgain(playClickSound: () => void) {
   playClickSound();
-  await loadFivemPath();
+  statusMessage = "Проверка установки FiveM…";
+  try {
+    // Сначала логируем диагностику
+    const diag = await invoke<Record<string, unknown>>("diagnose_fivem_install");
+    console.log("[FiveM Diagnose]", JSON.stringify(diag, null, 2));
+
+    const installed = await invoke<boolean>("check_fivem_installed");
+    if (installed) {
+      await loadFivemPath();
+      isDownloading = false;
+      statusMessage = "FiveM установлен ✓";
+      setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout);
+    } else {
+      // Покажем полезную информацию из диагностики
+      const dirExists = diag.fivem_dir_exists as boolean;
+      const fileCount = (diag.file_count as number) ?? 0;
+      const totalSizeMb = (diag.total_size_mb as number) ?? 0;
+      const processes = (diag.fivem_processes as string) ?? "";
+
+      if (!dirExists) {
+        statusMessage = "Папка FiveM не существует. Установщик не создал папку — возможно он был заблокирован антивирусом.";
+      } else if (fileCount === 0) {
+        statusMessage = "Папка FiveM пустая! Установщик не смог скачать файлы. Попробуйте отключить антивирус и установить вручную.";
+      } else if (processes) {
+        statusMessage = `FiveM ещё устанавливается (${processes}). Подождите…`;
+      } else {
+        statusMessage = `FiveM не установлен. В папке ${fileCount} файлов (${totalSizeMb} МБ). Установщик не завершил работу.`;
+      }
+      setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 5000);
+    }
+  } catch (e) {
+    statusMessage = "Ошибка проверки: " + (e instanceof Error ? e.message : String(e));
+    setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 2000);
+  }
 }
 
 // ── Запуск игры ──
