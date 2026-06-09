@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYnhPMmJ2YVVVRlRkN1JtWkF2MTRISlFhWlhNR281L0puUzVHMTd1ZkdVdXhIelp2MjdpcjJFMFpvbmwzN2p2M3F3RitlN09JZWlzdjA0ZGJ6YTdydmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMDAwMzc1CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjlfeDY0LXNldHVwLmV4ZQoyenN0SlVVK09jaVhNa0dsdENQNUhDZUI1QUx4TnczZWFqdGdmUTVIbm5sZmxjNTNscHl2dmY2cjU0U0hPaytpd1h4NVp4MHZ6L2s5RGxEaHhNSGxBdz09Cg==",
-                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.9_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYndNa2FMdlZmTU11cTB1T0kzaGgrUU8wKy94ODhNallhZHVXNGhKR1lhQ2t0RG5kdDdKV1c2UEhlRE1iVXRmSXRzaEF6S1FNcnYwc3lpUkFTSi9yVmdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgxMDAwOTg2CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjEwX3g2NC1zZXR1cC5leGUKMEFVTzd3WW85enM4a2JRTDdiNGxOd2srelFJZ0hyMHQ3czEvNHlyV2ZHM29xeUEvK0NSY1YvL1U5RExMMmRYNmN3UFRacmpxemRhYmlnUmN4Z2RqREE9PQo=",
+                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA_Launcher_x64-setup.exe"
                                          }
                   },
-    "pub_date":  "2026-06-09T10:26:16Z",
-    "version":  "1.9.9",
-    "notes":  "## v1.9.9\n\n- Автоматическое обнаружение FiveM в онбординге (без кнопок)\n- Poll каждые 2 сек проверяет установку и переходит дальше автоматически"
+    "pub_date":  "2026-06-09T10:30:07Z",
+    "version":  "1.9.10",
+    "notes":  "## v1.9.10\n\n- Убрана версия из имени установщика (ASTRA_Launcher_x64-setup.exe)\n- Автоматическое обнаружение FiveM в онбординге"
 }
