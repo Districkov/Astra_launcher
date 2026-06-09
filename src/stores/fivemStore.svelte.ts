@@ -113,9 +113,26 @@ async function downloadAndInstall(playClickSound: () => void) {
     await invoke("download_fivem");
     unlisten();
     downloadPercent = 100;
+    downloadSize = "Добавление исключения антивируса…";
+
+    // Добавляем папку FiveM в исключения Windows Defender
+    // Это предотвращает удаление файлов установщика
+    try {
+      await invoke("add_defender_exclusion");
+      statusMessage = "Исключение антивируса добавлено ✓";
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (errMsg === "UAC_DENIED") {
+        statusMessage = "⚠️ Исключение антивируса отклонено. Нажмите «Да» в диалоге UAC.";
+      } else {
+        statusMessage = "⚠️ Не удалось добавить исключение антивируса. Установщик может быть заблокирован.";
+      }
+      setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 2000);
+    }
+
     downloadSize = "Запуск установщика…";
     await invoke("launch_fivem_installer");
-    statusMessage = "Установщик FiveM запущен. Дождитесь полной установки (папка должна заполниться файлами). Если папка пустая — отключите антивирус и повторите. Затем нажмите «Проверить».";
+    statusMessage = "Установщик FiveM запущен. Дождитесь полной установки (папка должна заполниться файлами). Затем нажмите «Проверить».";
     const pollStart = Date.now();
     const POLL_TIMEOUT = TIMING.installerPollTimeout;
     const poll = setInterval(async () => {

