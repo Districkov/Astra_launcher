@@ -582,10 +582,21 @@ fn launch_fivem_installer() -> Result<String, String> {
         return Err("Установщик не найден. Скачайте FiveM сначала.".to_string());
     }
 
+    // Проверяем размер файла установщика
+    if let Ok(meta) = fs::metadata(&installer) {
+        log_info!("launch_fivem_installer: размер установщика: {} байт", meta.len());
+        if meta.len() < 1_000_000 {
+            log_error!("launch_fivem_installer: установщик слишком мал ({}) — возможно повреждён", meta.len());
+            return Err("Установщик повреждён (файл слишком мал). Попробуйте скачать заново.".to_string());
+        }
+    }
+
     let installer_str = installer.to_string_lossy().to_string();
+    log_info!("launch_fivem_installer: путь установщика: {}", installer_str);
 
     // Запускаем установщик с правами админа через UAC
     // Start-Process -Verb RunAs вызывает диалог UAC и запускает процесс повышенно
+    // Без -Wait — установщик работает в фоне, лаунчер не зависает
     let script = format!(
         "Start-Process -FilePath '{}' -Verb RunAs",
         installer_str.replace('\'', "''")
@@ -600,18 +611,33 @@ fn launch_fivem_installer() -> Result<String, String> {
             format!("Не удалось запустить установщик: {}", e)
         })?;
 
-    if output.status.success() {
-        log_info!("launch_fivem_installer: установщик запущен с правами админа");
-        Ok("Установщик запущен с правами админа".to_string())
-    } else {
+    if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        log_error!("launch_fivem_installer: ошибка: {}", stderr);
-        if stderr.contains("0x80070005") || stderr.contains("Access is denied") || stderr.contains("отказано") {
-            Err("UAC_DENIED".to_string())
-        } else {
-            Err(format!("Не удалось запустить установщик: {}", stderr))
-        }
+        log_error!("launch_fivem_installer: ошибка Start-Process: {}", stderr);
+        return Err(format!("Не удалось запустить установщик: {}", stderr));
     }
+
+    // Start-Process -Verb RunAs всегда возвращает success,
+    // даже если пользователь отклонил UAC. Проверяем что процесс реально запустился:
+    // ждём 3 секунды и ищем процесс FiveM_install.exe или FXServerInstaller
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    let check_script = r#"Get-Process | Where-Object { $_.ProcessName -match 'FiveM_install|FXServerInstaller' } | Select-Object -First 1 | ForEach-Object { $_.Id }"#;
+    let check_output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", check_script])
+        .creation_flags(0x00000008)
+        .output()
+        .map_err(|e| format!("Ошибка проверки процесса: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&check_output.stdout).trim().to_string();
+
+    if stdout.is_empty() {
+        log_error!("launch_fivem_installer: процесс установщика не найден — UAC отклонён или установщик не запустился");
+        return Err("UAC_DENIED".to_string());
+    }
+
+    log_info!("launch_fivem_installer: установщик запущен с правами админа (PID: {})", stdout);
+    Ok("Установщик запущен с правами админа".to_string())
 }
 
 /// ─────────────────────────────────────────────

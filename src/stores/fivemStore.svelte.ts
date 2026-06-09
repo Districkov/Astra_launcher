@@ -144,7 +144,10 @@ async function downloadAndInstall(playClickSound: () => void) {
         return;
       }
     }
-    statusMessage = "Установщик FiveM запущен. Дождитесь полной установки (папка должна заполниться файлами). Затем нажмите «Проверить».";
+    // Показываем что установщик работает — ждём завершения
+    downloadPercent = 100;
+    downloadSize = "Ожидание установки FiveM…";
+    statusMessage = "Установщик FiveM запущен! Дождитесь пока он скачает и установит все файлы (может занять несколько минут). Затем нажмите «Проверить».";
     const pollStart = Date.now();
     const POLL_TIMEOUT = TIMING.installerPollTimeout;
     const poll = setInterval(async () => {

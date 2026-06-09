@@ -159,6 +159,16 @@
            style="width: {downloadPercent}%"></div>
     </div>
     <p class="text-xs text-gray-500 mt-2 text-center">{downloadPercent}%</p>
+    {#if downloadPercent >= 100}
+      <button
+        class="mt-3 w-full px-6 py-2 rounded-lg text-sm font-medium
+               bg-white/10 hover:bg-white/15 transition-colors btn-ripple"
+        onclick={checkFivemAgain}
+        onmouseenter={playHoverSound}
+      >
+        Проверить установку
+      </button>
+    {/if}
   </div>
 {:else}
   <!-- FiveM не найден -->

@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYitVdmFpVlhneXZyNjBWeUttOC9CaVBrRWptZEJDR0ZxblN4WDdjeStKK1JhdXhnZTgwQ01mM0NBSDZVVURSZndWT05yYTkzSDJtLzlCQ1UvZC9uVGd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk3MTQ4CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjRfeDY0LXNldHVwLmV4ZQpaY1U2eUdtU2FGbXM3U1V5ZE1ndlJzVHU3eWQwWTB3aGVTSS9vU3F6dW13V1ZiODBTaThLUGRlODYwRFJ5TldFU3F1S3d6S2doYmJRNDdONWxVbUFDQT09Cg==",
-                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.4_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYi80aTNaNHJmb2RYOW1KZUx0MWVUekZxQmFCVWJTOVQ3Qmk4U3dIazA1QXQxMTkxbWhhWEMvQzYrRHZXNmlzYXgyOGpjcVNSaW1tSWhNczM3ZlNTcHc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk3OTE1CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjVfeDY0LXNldHVwLmV4ZQpPRkcvUVI2V2xUTG1jZE41VzVoQWI4cklpSWJ4ZFRVM1RlRUNiMi8zQXdKRlhaMjd1UUdjSWtTTEdaWFlWdHlHRFVRTXNUWFR4b1B0cVpBWEFLNFdEQT09Cg==",
+                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.5_x64-setup.exe"
                                          }
                   },
-    "pub_date":  "2026-06-09T09:26:00Z",
-    "version":  "1.9.4",
-    "notes":  "## v1.9.4\n\n- FiveM installer now runs with admin rights (UAC) to prevent antivirus blocking\n- Defender exclusion for FiveM + Astra Launcher\n- Forum opens in browser"
+    "pub_date":  "2026-06-09T09:38:47Z",
+    "version":  "1.9.5",
+    "notes":  "## v1.9.5\n\n- Improved FiveM install flow: shows waiting state while installer runs\n- Added \u0027Check installation\u0027 button during install\n- Better logging for FiveM installer path and size\n- Validates installer file size before launch"
 }
