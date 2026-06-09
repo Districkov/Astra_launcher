@@ -14,6 +14,7 @@
     downloadPercent = 0,
     downloadSize = "",
     downloadError = "",
+    statusMessage = "",
     onboardingNext = () => {},
     onboardingSelectFivem = async () => {},
     onboardingDownloadFivem = async () => {},
@@ -96,7 +97,7 @@
 
             {#if isDownloading}
               <!-- Прогресс скачивания -->
-              <div class="w-full max-w-xs mb-6">
+              <div class="w-full max-w-xs mb-4">
                 <p class="text-xs text-white/40 mb-2 text-center">{downloadSize || "Скачивание FiveM…"}</p>
                 <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                   <div class="h-full bg-gradient-to-r from-[#f64a46] to-[#ff8c4d] rounded-full transition-all duration-300"
@@ -104,6 +105,9 @@
                 </div>
                 <p class="text-xs text-white/20 mt-1 text-center">{downloadPercent}%</p>
               </div>
+              {#if statusMessage}
+                <p class="text-xs text-white/50 mb-3 text-center max-w-xs">{statusMessage}</p>
+              {/if}
             {:else}
               <!-- Кнопки: скачать / указать путь -->
               <div class="flex flex-col gap-3 w-full max-w-xs">

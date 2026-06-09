@@ -98,8 +98,23 @@ async function onboardingSelectFivem(playClickSound: () => void) {
 async function onboardingDownloadFivem(playClickSound: () => void) {
   playClickSound();
   const fivem = await getFivemStore();
-  await fivem.downloadAndInstall(playClickSound);
-  onboardingFivemResult = fivem.found ? 'found' : null;
+  
+  // Запускаем скачивание (не ждём завершения — downloadAndInstall работает с poll)
+  fivem.downloadAndInstall(playClickSound);
+  
+  // Сами следим за fivem.found — когда poll внутри downloadAndInstall найдёт FiveM,
+  // обновляем onboardingFivemResult автоматически
+  const checkInterval = setInterval(() => {
+    if (fivem.found) {
+      onboardingFivemResult = 'found';
+      clearInterval(checkInterval);
+    }
+    // Если скачивание завершилось (таймаут/ошибка) и FiveM не найден
+    if (!fivem.downloading && !fivem.found) {
+      onboardingFivemResult = 'not_found';
+      clearInterval(checkInterval);
+    }
+  }, 2000);
 }
 
 /** Go back one step, or close if on step 1 */

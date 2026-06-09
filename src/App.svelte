@@ -399,7 +399,6 @@
         statusMessage={fivem.statusMessage}
         handlePlay={() => fivem.handlePlay(audio.playClickSound, server.online, setDiscordRpcPlaying)}
         downloadAndInstall={() => fivem.downloadAndInstall(audio.playClickSound)}
-        checkFivemAgain={() => fivem.checkFivemAgain(audio.playClickSound)}
         playHoverSound={audio.playHoverSound}
       />
 
@@ -451,6 +450,7 @@
     downloadPercent={fivem.downloadPercent}
     downloadSize={fivem.downloadSize}
     downloadError={fivem.downloadError}
+    statusMessage={fivem.statusMessage}
     onboardingNext={() => onboarding.onboardingNext(audio.playClickSound, { value: username }, (v) => { username = v; })}
     onboardingSelectFivem={() => onboarding.onboardingSelectFivem(audio.playClickSound)}
     onboardingDownloadFivem={() => onboarding.onboardingDownloadFivem(audio.playClickSound)}
