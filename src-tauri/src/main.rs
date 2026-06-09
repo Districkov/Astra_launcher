@@ -570,10 +570,11 @@ fn add_defender_exclusion() -> Result<String, String> {
     }
 }
 
-/// Запускает скачанный установщик FiveM БЕЗ ожидания.
+/// Запускает скачанный установщик FiveM с правами админа через UAC.
+/// Это нужно чтобы антивирус не блокировал скачивание файлов установщиком.
 #[command]
 fn launch_fivem_installer() -> Result<String, String> {
-    log_info!("launch_fivem_installer: запуск установщика");
+    log_info!("launch_fivem_installer: запуск установщика с правами админа");
     let installer = fivem_installer_path();
 
     if !installer.exists() {
@@ -581,14 +582,36 @@ fn launch_fivem_installer() -> Result<String, String> {
         return Err("Установщик не найден. Скачайте FiveM сначала.".to_string());
     }
 
-    std::process::Command::new(installer.as_os_str())
-        .spawn()
+    let installer_str = installer.to_string_lossy().to_string();
+
+    // Запускаем установщик с правами админа через UAC
+    // Start-Process -Verb RunAs вызывает диалог UAC и запускает процесс повышенно
+    let script = format!(
+        "Start-Process -FilePath '{}' -Verb RunAs",
+        installer_str.replace('\'', "''")
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .creation_flags(0x00000008) // CREATE_NO_WINDOW
+        .output()
         .map_err(|e| {
-            log_error!("Не удалось запустить установщик: {}", e);
+            log_error!("Не удалось запустить PowerShell: {}", e);
             format!("Не удалось запустить установщик: {}", e)
         })?;
 
-    Ok("Установщик запущен".to_string())
+    if output.status.success() {
+        log_info!("launch_fivem_installer: установщик запущен с правами админа");
+        Ok("Установщик запущен с правами админа".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log_error!("launch_fivem_installer: ошибка: {}", stderr);
+        if stderr.contains("0x80070005") || stderr.contains("Access is denied") || stderr.contains("отказано") {
+            Err("UAC_DENIED".to_string())
+        } else {
+            Err(format!("Не удалось запустить установщик: {}", stderr))
+        }
+    }
 }
 
 /// ─────────────────────────────────────────────
