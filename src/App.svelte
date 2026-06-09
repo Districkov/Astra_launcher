@@ -200,6 +200,10 @@
       openEmbeddedBrowser("https://t.me/astrarp5");
       return;
     }
+    if (id === "forum") {
+      openUrl("https://forum.astra-rp.fun");
+      return;
+    }
     // Если уходим с новости — закрываем webview
     if (browserActive && id !== "news") {
       closeEmbeddedBrowser();
