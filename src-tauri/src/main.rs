@@ -664,11 +664,15 @@ fn add_defender_exclusion() -> Result<String, String> {
     }
 }
 
-/// Запускает скачанный установщик FiveM с правами админа через UAC.
-/// Это нужно чтобы антивирус не блокировал скачивание файлов установщиком.
+/// Запускает скачанный FiveM.exe БЕЗ прав админа.
+/// Запуск с -Verb RunAs устанавливал FiveM в профиль администратора,
+/// а не текущего пользователя — папка оставалась пустой.
+/// Теперь запускаем от имени текущего пользователя, чтобы FiveM
+/// установился в правильный %LOCALAPPDATA%\FiveM.
+/// Defender исключение добавляется отдельно (до запуска).
 #[command]
 fn launch_fivem_installer() -> Result<String, String> {
-    log_info!("launch_fivem_installer: запуск установщика с правами админа");
+    log_info!("launch_fivem_installer: запуск FiveM от имени текущего пользователя");
     let installer = fivem_installer_path();
 
     if !installer.exists() {
@@ -676,62 +680,30 @@ fn launch_fivem_installer() -> Result<String, String> {
         return Err("Установщик не найден. Скачайте FiveM сначала.".to_string());
     }
 
-    // Проверяем размер файла установщика
+    // Проверяем размер файла
     if let Ok(meta) = fs::metadata(&installer) {
-        log_info!("launch_fivem_installer: размер установщика: {} байт", meta.len());
+        log_info!("launch_fivem_installer: размер файла: {} байт", meta.len());
         if meta.len() < 1_000_000 {
-            log_error!("launch_fivem_installer: установщик слишком мал ({}) — возможно повреждён", meta.len());
-            return Err("Установщик повреждён (файл слишком мал). Попробуйте скачать заново.".to_string());
+            log_error!("launch_fivem_installer: файл слишком мал ({}) — повреждён", meta.len());
+            return Err("Файл повреждён (слишком мал). Попробуйте скачать заново.".to_string());
         }
     }
 
     let installer_str = installer.to_string_lossy().to_string();
-    log_info!("launch_fivem_installer: путь установщика: {}", installer_str);
+    log_info!("launch_fivem_installer: путь: {}", installer_str);
 
-    // Запускаем установщик с правами админа через UAC
-    // Start-Process -Verb RunAs вызывает диалог UAC и запускает процесс повышенно
-    // Без -Wait — установщик работает в фоне, лаунчер не зависает
-    let script = format!(
-        "Start-Process -FilePath '{}' -Verb RunAs",
-        installer_str.replace('\'', "''")
-    );
-
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-        .creation_flags(0x00000008) // CREATE_NO_WINDOW
-        .output()
+    // Запускаем БЕЗ повышения прав — FiveM установится в профиль текущего пользователя
+    let child = Command::new(&installer_str)
+        .creation_flags(0x00000008) // CREATE_NO_WINDOW — не показываем консоль
+        .spawn()
         .map_err(|e| {
-            log_error!("Не удалось запустить PowerShell: {}", e);
-            format!("Не удалось запустить установщик: {}", e)
+            log_error!("launch_fivem_installer: не удалось запустить: {}", e);
+            format!("Не удалось запустить FiveM: {}", e)
         })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log_error!("launch_fivem_installer: ошибка Start-Process: {}", stderr);
-        return Err(format!("Не удалось запустить установщик: {}", stderr));
-    }
-
-    // Start-Process -Verb RunAs всегда возвращает success,
-    // даже если пользователь отклонил UAC. Проверяем что процесс реально запустился:
-    // ждём 3 секунды и ищем процесс FiveM_install.exe или FXServerInstaller
-    std::thread::sleep(std::time::Duration::from_secs(3));
-
-    let check_script = r#"Get-Process | Where-Object { $_.ProcessName -match 'FiveM_install|FXServerInstaller' } | Select-Object -First 1 | ForEach-Object { $_.Id }"#;
-    let check_output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", check_script])
-        .creation_flags(0x00000008)
-        .output()
-        .map_err(|e| format!("Ошибка проверки процесса: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&check_output.stdout).trim().to_string();
-
-    if stdout.is_empty() {
-        log_error!("launch_fivem_installer: процесс установщика не найден — UAC отклонён или установщик не запустился");
-        return Err("UAC_DENIED".to_string());
-    }
-
-    log_info!("launch_fivem_installer: установщик запущен с правами админа (PID: {})", stdout);
-    Ok("Установщик запущен с правами админа".to_string())
+    let pid = child.id();
+    log_info!("launch_fivem_installer: FiveM запущен (PID: {})", pid);
+    Ok(format!("FiveM запущен (PID: {})", pid))
 }
 
 /// ─────────────────────────────────────────────

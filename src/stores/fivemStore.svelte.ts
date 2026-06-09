@@ -130,24 +130,18 @@ async function downloadAndInstall(playClickSound: () => void) {
       setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 2000);
     }
 
-    downloadSize = "Запуск установщика…";
+    downloadSize = "Запуск FiveM…";
     try {
       await invoke("launch_fivem_installer");
     } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      if (errMsg === "UAC_DENIED") {
-        statusMessage = "⚠️ Нажмите «Да» в диалоге UAC для запуска установщика.";
-        setTimeout(() => { statusMessage = ""; }, TIMING.statusMessageTimeout + 3000);
-      } else {
-        downloadError = `${e}`;
-        isDownloading = false;
-        return;
-      }
+      downloadError = `${e}`;
+      isDownloading = false;
+      return;
     }
-    // Показываем что установщик работает — ждём завершения
+    // Показываем что FiveM работает — ждём завершения установки
     downloadPercent = 100;
     downloadSize = "Ожидание установки FiveM…";
-    statusMessage = "Установщик FiveM запущен! Дождитесь пока он скачает и установит все файлы (может занять несколько минут). Затем нажмите «Проверить».";
+    statusMessage = "FiveM запущен! Дождитесь пока он установит все файлы (может занять несколько минут). Затем нажмите «Проверить».";
     const pollStart = Date.now();
     const POLL_TIMEOUT = TIMING.installerPollTimeout;
     const poll = setInterval(async () => {
