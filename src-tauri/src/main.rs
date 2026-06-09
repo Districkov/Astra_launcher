@@ -181,6 +181,8 @@ fn find_fivem_exe() -> Option<PathBuf> {
         local_appdata.join("FiveM").join("FiveM.exe"),
         // %LocalAppData%\FiveM\FiveM.app\FiveM.exe (альтернатива)
         local_appdata.join("FiveM").join("FiveM.app").join("FiveM.exe"),
+        // Скачанный установщик (это тоже FiveM.exe — stub/полный клиент)
+        fivem_installer_path(),
         // Program Files
         PathBuf::from(r"C:\Program Files\FiveM\FiveM.exe"),
         PathBuf::from(r"C:\Program Files (x86)\FiveM\FiveM.exe"),
@@ -195,6 +197,9 @@ fn find_fivem_exe() -> Option<PathBuf> {
     if let Some(la) = &local_appdata_env {
         search_paths.push(PathBuf::from(la).join("FiveM").join("FiveM.exe"));
         search_paths.push(PathBuf::from(la).join("FiveM").join("FiveM.app").join("FiveM.exe"));
+        // FiveM может также установиться в "FiveM Application"
+        search_paths.push(PathBuf::from(la).join("FiveM Application").join("FiveM.exe"));
+        search_paths.push(PathBuf::from(la).join("FiveM Application").join("FiveM.app").join("FiveM.exe"));
     }
     if let Some(h) = &home_env {
         search_paths.push(PathBuf::from(h).join("Desktop").join("FiveM.exe"));
@@ -223,6 +228,25 @@ fn find_fivem_exe() -> Option<PathBuf> {
             if target.exists() {
                 return Some(target);
             }
+        }
+    }
+
+    // 3.5. Проверяем ярлыки в Start Menu (C:\Users\...\AppData\Roaming\Microsoft\Windows\Start Menu\Programs)
+    let roaming = std::env::var("APPDATA").unwrap_or_else(|_| String::new());
+    if !roaming.is_empty() {
+        let start_menu = PathBuf::from(&roaming).join("Microsoft").join("Windows").join("Start Menu").join("Programs");
+        if start_menu.exists() {
+            // Ищем FiveM.lnk рекурсивно в Start Menu
+            if let Some(found) = search_lnk_recursive(&start_menu, "FiveM") {
+                return Some(found);
+            }
+        }
+    }
+    // Также общий Start Menu для всех пользователей
+    let common_start = PathBuf::from(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs");
+    if common_start.exists() {
+        if let Some(found) = search_lnk_recursive(&common_start, "FiveM") {
+            return Some(found);
         }
     }
 
@@ -272,6 +296,32 @@ fn resolve_lnk_target(_lnk_path: &PathBuf) -> Option<PathBuf> {
 }
 
 /// Рекурсивно ищет FiveM.exe в папке (до max_depth уровней)
+/// Ищет .lnk ярлык рекурсивно в папке и разрешает его в путь к exe
+fn search_lnk_recursive(dir: &Path, name_contains: &str) -> Option<PathBuf> {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = search_lnk_recursive(&path, name_contains) {
+                    return Some(found);
+                }
+            } else {
+                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if file_name.to_lowercase().contains(name_contains.to_lowercase().as_str())
+                    && file_name.ends_with(".lnk")
+                {
+                    if let Some(target) = resolve_lnk_target(&path) {
+                        if target.exists() {
+                            return Some(target);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn search_exe_recursive(dir: &PathBuf, max_depth: u32) -> Option<PathBuf> {
     if max_depth == 0 {
         return None;
@@ -396,38 +446,87 @@ fn diagnose_fivem_install() -> Result<serde_json::Value, String> {
 /// (папка FiveM.app содержит файлы — признак полной установки).
 #[command]
 fn check_fivem_installed() -> Result<bool, String> {
-    let exe_path = match find_fivem_exe() {
-        Some(p) => p,
-        None => return Ok(false),
-    };
-
-    // FiveM.exe найден — проверяем, что установка завершена
-    // Если FiveM.exe в папке FiveM\, проверяем что FiveM.app не пустая
-    if let Some(parent) = exe_path.parent() {
-        let app_dir = parent.join("FiveM.app");
-        if app_dir.exists() {
-            // Проверяем что в FiveM.app есть хотя бы несколько файлов
-            if let Ok(entries) = fs::read_dir(&app_dir) {
-                let count = entries.count();
-                if count > 5 {
-                    // Установка завершена — в папке достаточно файлов
+    // Сначала проверяем через find_fivem_exe (полная проверка)
+    if let Some(exe_path) = find_fivem_exe() {
+        // FiveM.exe найден — проверяем, что установка завершена
+        if let Some(parent) = exe_path.parent() {
+            let app_dir = parent.join("FiveM.app");
+            if app_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&app_dir) {
+                    let count = entries.count();
+                    if count > 5 {
+                        return Ok(true);
+                    }
+                }
+            }
+            if let Ok(meta) = fs::metadata(&exe_path) {
+                if meta.len() > 4_000_000 {
                     return Ok(true);
                 }
             }
         }
-        // Если FiveM.app нет или пустая — возможно установка не завершена
-        // Но FiveM.exe может быть и без FiveM.app (редкие случаи)
-        // Проверяем размер самого exe
-        if let Ok(meta) = fs::metadata(&exe_path) {
-            if meta.len() > 4_000_000 {
-                // FiveM.exe > 4 МБ — полноценная установка
+    }
+
+    // Если find_fivem_exe не нашёл — проверяем FiveM.app напрямую
+    // FiveM stub-установщик скачивает файлы в FiveM.app, но FiveM.exe
+    // может быть внутри FiveM.app или вообще отсутствовать на верхнем уровне
+    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| String::new());
+    let fivem_dir = PathBuf::from(&local_appdata).join("FiveM");
+
+    if fivem_dir.exists() {
+        let app_dir = fivem_dir.join("FiveM.app");
+        if app_dir.exists() {
+            // Считаем файлы рекурсивно в FiveM.app
+            let mut file_count: usize = 0;
+            let mut total_size: u64 = 0;
+            fn count_recursive(dir: &Path, count: &mut usize, size: &mut u64) {
+                if let Ok(entries) = fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            count_recursive(&path, count, size);
+                        } else {
+                            *count += 1;
+                            if let Ok(meta) = fs::metadata(&path) {
+                                *size += meta.len();
+                            }
+                        }
+                    }
+                }
+            }
+            count_recursive(&app_dir, &mut file_count, &mut total_size);
+
+            // Если в FiveM.app > 100 файлов и > 50 МБ — установка завершена
+            if file_count > 100 && total_size > 50_000_000 {
+                log_info!("check_fivem_installed: FiveM.app содержит {} файлов ({} МБ) — установка завершена", 
+                    file_count, total_size / 1_048_576);
                 return Ok(true);
             }
+
+            log_info!("check_fivem_installed: FiveM.app содержит {} файлов ({} МБ) — установка может быть неполной",
+                file_count, total_size / 1_048_576);
+        }
+
+        // Проверяем структуру FiveM.app\FiveM.exe (внутренний путь)
+        let inner_exe = app_dir.join("FiveM.exe");
+        if inner_exe.exists() {
+            if let Ok(meta) = fs::metadata(&inner_exe) {
+                if meta.len() > 4_000_000 {
+                    log_info!("check_fivem_installed: FiveM.app\\FiveM.exe найден ({} МБ)", meta.len() / 1_048_576);
+                    return Ok(true);
+                }
+            }
+        }
+
+        // Проверяем CitizenFX.ini — признак установленного FiveM
+        let citizen_ini = app_dir.join("CitizenFX.ini");
+        if citizen_ini.exists() {
+            log_info!("check_fivem_installed: CitizenFX.ini найден — FiveM установлен");
+            return Ok(true);
         }
     }
 
-    // FiveM.exe найден, но похоже что установка не завершена
-    log_info!("check_fivem_installed: FiveM.exe найден, но установка может быть неполной");
+    log_info!("check_fivem_installed: FiveM не найден");
     Ok(false)
 }
 

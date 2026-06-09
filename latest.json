@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYnppcDdVbkJmTk4vclBvQ2ZHd2lieWJIVG9ISUxPT2lFQUtyNlZLWmxFTEtSYmZKME5JR1huRkF0aTZ2d3pxbm1RODdRWlVqWTlzc2lLUlMvdWVlTmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk4NTQ5CWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjdfeDY0LXNldHVwLmV4ZQo1NlZtNWEwNUJmMDJBaUZYVG5wT0JkeUlYMldNTWdkWC9zbkVlMVZkbGlWZWF3Tk9hQU1QcWNoRXdzKzBKZTJRbUl6OTllazdVUFlFVFA1RldaOGZDQT09Cg==",
-                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.7_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTOUVMSlQrWnZRYnh0clNTNndZQWNoRnJEbTNLSlJrMUxKcHZ6VGVsbTI1TkpYenIzTkVSdElKQ3ZVT2gwOFkzWjRENW5nT1JyNlpRTEplaHIzVVJJMFRCVmxmQnlkN2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwOTk5MDQzCWZpbGU6QVNUUkEgTGF1bmNoZXJfMS45LjhfeDY0LXNldHVwLmV4ZQpqZndYbEdoVmpOTE1UUFY0Y3F1NUM4ekF2eXJLTi95cUU3NFA1ZERYUElZR3FhR0kyRXl1MXJVaFlEOEV1TmJaTjZoRTRrOGo2dkR4SG5XVzFaa01Ddz09Cg==",
+                                             "url":  "https://github.com/Districkov/Astra_launcher/releases/latest/download/ASTRA.Launcher_1.9.8_x64-setup.exe"
                                          }
                   },
-    "pub_date":  "2026-06-09T09:49:22Z",
-    "version":  "1.9.7",
-    "notes":  "## v1.9.7\n\n- **FIX: FiveM now installs to correct user folder** — was installing to admin profile when launched with UAC\n- FiveM.exe launches without admin elevation (Defender exclusion added separately)\n- Diagnostics: detailed info when checking installation"
+    "pub_date":  "2026-06-09T09:58:28Z",
+    "version":  "1.9.8",
+    "notes":  "## v1.9.8\n\n- **FIX: FiveM found via Start Menu shortcut** — searches .lnk files in Start Menu Programs\n- Improved FiveM detection: checks FiveM.app contents, CitizenFX.ini\n- FiveM.exe launches without admin rights (installs to correct user profile)\n- Diagnostics: detailed info when checking installation"
 }
