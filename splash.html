@@ -269,18 +269,18 @@
       const MIN_SPLASH = 3000; // минимальное время показа splash (мс)
       const startTime = Date.now();
 
-      // Этап 1: Проверка FiveM
-      statusEl.textContent = 'Поиск FiveM…';
+      // Этап 1: Проверка RAGE:MP
+      statusEl.textContent = 'Поиск RAGE:MP…';
       try {
-        const installed = await invoke('check_fivem_installed');
+        const installed = await invoke('check_client_installed');
         if (installed) {
-          statusEl.textContent = 'FiveM найден ✓';
+          statusEl.textContent = 'RAGE:MP найден ✓';
         } else {
-          statusEl.textContent = 'FiveM не найден';
+          statusEl.textContent = 'RAGE:MP не найден';
         }
       } catch (e) {
-        console.error('check_fivem_installed error:', e);
-        statusEl.textContent = 'Пропуск проверки FiveM';
+        console.error('check_client_installed error:', e);
+        statusEl.textContent = 'Пропуск проверки RAGE:MP';
       }
       await sleep(400);
 

@@ -1,18 +1,7 @@
 <!--
   ASTRA Launcher — Frontend (Svelte 5 + Tailwind CSS)
   ==================================================
-  Дизайн на основе imdex.tsx — тёмная тема с акцентами #f64a46
-
-  Структура:
-  ┌──────────┬──────────────────────────┐
-  │ Sidebar  │       Main Area          │
-  │ #1b1b1b  │   GTA V bg + ASTRA       │
-  │          │   [Кнопка «Играть»]      │
-  │ Logo     │   [Настройки]            │
-  │ Status   │                          │
-  │ Menu     │                          │
-  │ Profile  │                          │
-  └──────────┴──────────────────────────┘
+  RAGE:MP launcher with 3-step system
 -->
 
 <script>
@@ -24,7 +13,7 @@
   import { TIMING } from "./constants";
   import { getServerStore } from "./stores/serverStore.svelte";
   import { getUpdateStore } from "./stores/updateStore.svelte";
-  import { getFivemStore } from "./stores/fivemStore.svelte";
+  import { getGameStore } from "./stores/gameStore.svelte";
   import { getAudioStore } from "./stores/audioStore.svelte";
   import { getOnboardingStore } from "./stores/onboardingStore.svelte";
   import { getStoreStore } from "./stores/storeStore.svelte";
@@ -44,7 +33,7 @@
   // ── Store instances ────────────────────────────
   const server = getServerStore();
   const update = getUpdateStore();
-  const fivem = getFivemStore();
+  const game = getGameStore();
   const audio = getAudioStore();
   const onboarding = getOnboardingStore();
   const store = getStoreStore();
@@ -53,11 +42,10 @@
   try {
     appWindow = getCurrentWindow();
   } catch (e) {
-    // window not available
     appWindow = null;
   }
 
-  // ── Локальное UI-состояние (не в stores) ────────
+  // ── Local UI state ──────────────────────────────
   let activeMenu = $state("play");
   let previousMenu = $state("play");
   let showCloseConfirm = $state(false);
@@ -68,16 +56,14 @@
   let username = $state("Player");
   let discordRpcActive = $state(false);
 
-  // Параллакс — смещение фона при движении мыши (throttled via rAF)
   let parallaxX = $state(0);
   let parallaxY = $state(0);
-  let parallaxRafId = 0; // not reactive — plain variable for rAF throttling
+  let parallaxRafId = 0;
 
-  // DPI масштаб для ASTRA текста на 2K/4K
   let dpiScale = $state(1);
 
   function handleMouseMove(e) {
-    if (parallaxRafId) return; // уже запланирован кадр
+    if (parallaxRafId) return;
     parallaxRafId = requestAnimationFrame(() => {
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
@@ -87,7 +73,6 @@
     });
   }
 
-  // Клавиатурная навигация — Escape закрывает модалки
   function handleKeyDown(e) {
     if (e.key === "Escape") {
       if (showCloseConfirm) { showCloseConfirm = false; return; }
@@ -97,7 +82,6 @@
     }
   }
 
-  // Частицы — позиции кэшируются один раз (20 вместо 30 для производительности)
   let particleStyles = $state([]);
   function initParticles() {
     particleStyles = Array.from({ length: 20 }, () => ({
@@ -111,17 +95,13 @@
     }));
   }
 
-
-
-  // Производное: текст кнопки
   let playLabel = $derived(
-    fivem.precacheDownloading ? `Скачивание кеша ${fivem.precachePercent}%${fivem.precacheTotal ? ' (' + fivem.precacheDownloaded + '/' + fivem.precacheTotal + ')' : ''}` :
-    fivem.precacheExtracting ? `Распаковка кеша ${fivem.precachePercent}%` :
-    fivem.launchPhase > 0 ? fivem.launchPhases[fivem.launchPhase - 1]?.label || "Запуск…" :
-    fivem.launching ? "Запуск…" : "Играть"
+    game.isDownloadingCache ? `Загрузка ресурсов ${game.cachePercent}%` :
+    game.isDownloadingClient ? `Скачивание: ${game.clientDownloadFile} ${game.clientDownloadPercent}%` :
+    game.launchPhase > 0 ? game.launchPhases[game.launchPhase - 1]?.label || "Запуск…" :
+    game.launching ? "Запуск…" : "Играть"
   );
 
-  // Пункты бокового меню (из imdex.tsx)
   const menuItems = [
     { id: "play",       label: "Играть",      icon: "play",       active: true,  group: 1 },
     { id: "store",      label: "Магазин",     icon: "store",      active: false, group: 1 },
@@ -131,10 +111,8 @@
     { id: "settings",   label: "Настройки",   icon: "settings",   active: false, group: 3 },
   ];
 
-  // ── Делегированные функции (stores) ─────────────
   const addNotification = server.addNotification;
 
-  // ── #9 Имя пользователя ────────────────────────
   async function loadUsername() {
     try {
       const name = await invoke("get_username");
@@ -144,7 +122,6 @@
     }
   }
 
-  // ── #13 Discord Rich Presence ──────────────────
   async function initDiscordRpc() {
     try {
       const ok = await invoke("set_discord_rpc", {
@@ -168,14 +145,12 @@
     } catch (e) {}
   }
 
-  // ── Telegram в лаунчере (встроенный webview) ──
   async function openEmbeddedBrowser(url) {
     try {
       await invoke("create_embedded_webview", { url });
       browserActive = true;
       activeMenu = "news";
     } catch (err) {
-      // webview error
       openUrl(url);
     }
   }
@@ -183,13 +158,10 @@
   async function closeEmbeddedBrowser() {
     try {
       await invoke("close_embedded_webview");
-    } catch (err) {
-      // webview close error
-    }
+    } catch (err) {}
     browserActive = false;
   }
 
-  // ── Обработчик меню ─────────────────────────────
   function selectMenu(id) {
     audio.playClickSound();
     if (id === "discord") {
@@ -204,49 +176,43 @@
       openUrl("https://forum.astra-rp.fun");
       return;
     }
-    // Если уходим с новости — закрываем webview
     if (browserActive && id !== "news") {
       closeEmbeddedBrowser();
     }
 
-    // #10 — Анимация перехода
     previousMenu = activeMenu;
     activeMenu = id;
     pageTransition = "fade-in";
-    // Reset transition after animation completes
     setTimeout(() => { pageTransition = ""; }, TIMING.transitionDuration);
 
     if (id === "settings") {
-      fivem.loadFivemPath();
+      game.loadRageDir();
     }
   }
 
-  // ── Инициализация ───────────────────────────────
   onMount(() => {
-    // Вычисляем DPI масштаб на основе device pixel ratio
     dpiScale = window.devicePixelRatio || 1;
-
-    // Получаем версию приложения из Tauri
     getVersion().then(v => { update.setCurrentVersion(v); }).catch(() => {});
-
     initParticles();
     setTimeout(() => { launcherReady = true; }, TIMING.launcherReadyDelay);
-
-    // #11 — Инициализация звуков через AudioContext
     audio.initAudio();
 
     server.loadServerStatus();
-    fivem.loadFivemPath();
-    fivem.autoFindFivem(); // No sound on auto-search at startup
-    loadUsername();
     server.loadServerPing();
+
+    // `autoFindRageDir` walks several directory trees and spawns PowerShell to
+    // resolve shortcuts — chain it after the cheap lookup so the two do not
+    // compete, and keep everything else off the critical path.
+    game.loadRageDir().then(() => game.autoFindRageDir());
+
+    game.loadLauncherConfig();
+    loadUsername();
     update.checkUpdates();
     initDiscordRpc();
     onboarding.checkOnboarding();
 
     const serverInterval = setInterval(() => server.loadServerStatus(), TIMING.serverStatusInterval);
     const pingInterval = setInterval(() => server.loadServerPing(), TIMING.serverPingInterval);
-    // Проверка обновлений каждые 30 мин
     const updateInterval = setInterval(() => update.checkUpdates(), TIMING.updateCheckInterval);
 
     return () => {
@@ -257,48 +223,25 @@
   });
 </script>
 
-<!-- ── Корневой контейнер ── -->
 <svelte:window onmousemove={handleMouseMove} onkeydown={handleKeyDown} oncontextmenu={(e) => e.preventDefault()} />
 
 <div class="astra-cursor relative w-full h-full min-w-[960px] min-h-[600px] rounded-[5px] overflow-hidden bg-[#0d0d0d] text-white select-none transition-opacity duration-700 {launcherReady ? 'opacity-100' : 'opacity-0'}">
 
-  <!-- ═══════════════════════════════════════════════
-       #6 АНИМИРОВАННЫЙ ФОН (частицы + градиент)
-       ═══════════════════════════════════════════════ -->
   <Background {parallaxX} {parallaxY} {dpiScale} {particleStyles} />
 
-  <!-- ═══════════════════════════════════════════════
-       #7 УВЕДОМЛЕНИЯ (toast)
-       ═══════════════════════════════════════════════ -->
   <Notifications notifications={server.notifications} />
 
-  <!-- ═══════════════════════════════════════════════
-       #5 ИНДИКАТОР ОБНОВЛЕНИЯ
-       ═══════════════════════════════════════════════ -->
   <UpdateIndicator updateAvailable={update.available} updateInfo={update.info} onOpen={() => update.openUpdateModal(audio.playClickSound)} playHoverSound={audio.playHoverSound} />
 
-  <!-- ═══════════════════════════════════════════════
-       DRAG ZONE — верхняя полоса для перетаскивания окна
-       data-tauri-drag-region + fallback startDragging()
-       ═══════════════════════════════════════════════ -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div data-tauri-drag-region role="none" class="absolute top-0 left-0 right-[80px] h-[32px] z-[99] cursor-default"
        onmousedown={() => { if (appWindow) appWindow.startDragging(); }}>
   </div>
 
-  <!-- ═══════════════════════════════════════════════
-       КНОПКИ УПРАВЛЕНИЯ ОКНОМ (свернуть / закрыть)
-       ═══════════════════════════════════════════════ -->
   <WindowControls onClose={() => { audio.playClickSound(); showCloseConfirm = true; }} playHoverSound={audio.playHoverSound} />
 
-  <!-- ═══════════════════════════════════════════════
-       МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКРЫТИЯ
-       ═══════════════════════════════════════════════ -->
   <CloseConfirmModal show={showCloseConfirm} onClose={() => { showCloseConfirm = false; }} playClickSound={audio.playClickSound} playHoverSound={audio.playHoverSound} />
 
-  <!-- ═══════════════════════════════════════════════
-       МОДАЛКА ПОДТВЕРЖДЕНИЯ ВЫХОДА ИЗ ПРОФИЛЯ
-       ═══════════════════════════════════════════════ -->
   <LogoutConfirmModal
     show={showLogoutConfirm}
     onClose={() => { showLogoutConfirm = false; }}
@@ -307,9 +250,6 @@
     playHoverSound={audio.playHoverSound}
   />
 
-  <!-- ═══════════════════════════════════════════════
-       МОДАЛКА ОБНОВЛЕНИЯ
-       ═══════════════════════════════════════════════ -->
   <UpdateModal
     show={update.showModal}
     updateInfo={update.info}
@@ -324,14 +264,6 @@
     playHoverSound={audio.playHoverSound}
   />
 
-
-
-
-
-  <!-- ═══════════════════════════════════════════════
-       БОКОВАЯ ПАНЕЛЬ (Sidebar) — из imdex.tsx
-       Фон: #1b1b1b, ширина: 157px
-       ═══════════════════════════════════════════════ -->
   <Sidebar
     {activeMenu}
     serverOnline={server.online}
@@ -346,20 +278,14 @@
     onLogout={() => { showLogoutConfirm = true; }}
   />
 
-  <!-- ═══════════════════════════════════════════════
-       ОСНОВНАЯ ОБЛАСТЬ (Main Area)
-       ═══════════════════════════════════════════════ -->
   <main class="absolute top-0 left-[157px] right-0 bottom-0 flex flex-col items-center justify-center z-10 overflow-hidden">
     {#key activeMenu}
     <div class="flex flex-col items-center justify-center w-full h-full animate-page-enter">
 
     {#if activeMenu === "settings"}
-      <!-- ═══════════════════════════════════════
-           СЕКЦИЯ: НАСТРОЙКИ
-           ═══════════════════════════════════════ -->
       <Settings
-        fivemPath={fivem.path}
-        fivemFound={fivem.found}
+        rageDir={game.rageDir}
+        clientReady={game.clientReady}
         updateInfo={update.info}
         updateAvailable={update.available}
         updateChecked={update.checked}
@@ -368,44 +294,72 @@
         serverPlayers={server.players}
         serverMaxPlayers={server.maxPlayers}
         serverLoading={server.loading}
-        selectFivemPath={() => fivem.selectFivemPath(audio.playClickSound)}
-        autoFindFivem={() => fivem.autoFindFivem(audio.playClickSound)}
+        serverAddress={game.serverAddress}
+        patchManifest={game.patchManifest}
+        patchStatus={game.patchStatus}
+        whitelistStatus={game.whitelistStatus}
+        connectMode={game.connectMode}
+        hostsDomain={game.hostsDomain}
+        isApplyingWhitelist={game.isApplyingWhitelist}
+        whitelistError={game.whitelistError}
+        selectRageDir={() => game.selectRageDir(audio.playClickSound)}
+        autoFindRageDir={() => game.autoFindRageDir(audio.playClickSound)}
         openUpdateModal={() => update.openUpdateModal(audio.playClickSound)}
         checkUpdates={() => update.checkUpdates()}
         refreshServerStatus={() => server.refreshServerStatus()}
+        loadPatchStatus={() => game.loadPatchStatus()}
+        loadWhitelistStatus={() => game.loadWhitelistStatus()}
+        setConnectMode={(mode, domain) => game.setConnectMode(mode, domain)}
+        applyWhitelistBypass={() => game.applyWhitelistBypass()}
+        removeWhitelistBypass={() => game.removeWhitelistBypass()}
+        launchTarget={game.launchTarget}
+        launchDiagnostic={game.launchDiagnostic}
+        launchTargetError={game.launchTargetError}
+        setLaunchTarget={(t) => game.setLaunchTarget(t)}
+        setRuiAutoConnect={(e) => game.setRuiAutoConnect(e)}
+        loadLaunchDiagnostic={() => game.loadLaunchDiagnostic()}
+        clearLaunchRegistry={() => game.clearLaunchRegistry()}
+        setServerAddress={(a) => game.setServerAddress(a)}
+        ruiStatus={game.ruiStatus}
+        ruiConfig={game.ruiConfig}
+        ruiBusy={game.ruiBusy}
+        ruiError={game.ruiError}
+        ruiPreview={game.ruiPreview}
+        ruiLastReport={game.ruiLastReport}
+        loadRuiStatus={() => game.loadRuiStatus()}
+        loadRuiConfig={() => game.loadRuiConfig()}
+        previewRuiConfig={() => game.previewRuiConfig()}
+        applyRuiConfig={() => game.applyRuiConfig()}
+        restoreRui={() => game.restoreRui()}
+        setRuiField={(patch) => game.setRuiField(patch)}
+        setAutoConnectField={(patch) => game.setAutoConnectField(patch)}
         playHoverSound={audio.playHoverSound}
       />
 
     {:else if activeMenu === "play"}
-      <!-- ═══════════════════════════════════════
-           СЕКЦИЯ: ИГРАТЬ (из imdex.tsx дизайн)
-           ═══════════════════════════════════════ -->
       <PlaySection
-        launchPhase={fivem.launchPhase}
-        launchProgress={fivem.launchProgress}
-        launchPhases={fivem.launchPhases}
-        fivemFound={fivem.found}
-        isLaunching={fivem.launching}
+        launchPhase={game.launchPhase}
+        launchProgress={game.launchProgress}
+        launchPhases={game.launchPhases}
+        clientReady={game.clientReady}
+        isLaunching={game.launching}
         serverOnline={server.online}
+        serverHasStats={server.hasStats}
         offlineMode={server.offline}
-        isDownloading={fivem.downloading}
-        downloadPercent={fivem.downloadPercent}
-        downloadSize={fivem.downloadSize}
-        downloadError={fivem.downloadError}
-        precacheDownloading={fivem.precacheDownloading}
-        precacheExtracting={fivem.precacheExtracting}
-        precachePercent={fivem.precachePercent}
+        isDownloadingClient={game.isDownloadingClient}
+        clientDownloadPercent={game.clientDownloadPercent}
+        clientDownloadFile={game.clientDownloadFile}
+        clientDownloadError={game.clientDownloadError}
+        isDownloadingCache={game.isDownloadingCache}
+        cachePercent={game.cachePercent}
+        cachePhase={game.cachePhase}
         {playLabel}
-        statusMessage={fivem.statusMessage}
-        handlePlay={() => fivem.handlePlay(audio.playClickSound, server.online, setDiscordRpcPlaying)}
-        downloadAndInstall={() => fivem.downloadAndInstall(audio.playClickSound)}
+        statusMessage={game.statusMessage}
+        handlePlay={() => game.handlePlay(audio.playClickSound, server.online, setDiscordRpcPlaying)}
         playHoverSound={audio.playHoverSound}
       />
 
     {:else if activeMenu === "store"}
-      <!-- ═══════════════════════════════════════
-           СЕКЦИЯ: МАГАЗИН
-           ═══════════════════════════════════════ -->
       <StoreSection
         {store}
         playClickSound={audio.playClickSound}
@@ -414,9 +368,6 @@
       />
 
     {:else}
-      <!-- ═══════════════════════════════════════
-           ЗАГЛУШКА (Форум/Discord)
-           ═══════════════════════════════════════ -->
       <div class="z-10 text-center">
         <div class="mb-4 flex justify-center">
           {#if activeMenu === 'forum'}
@@ -435,25 +386,21 @@
     {/key}
   </main>
 
-  <!-- ═══════════════════════════════════════════════
-       ОНБОРДИНГ (первый запуск)
-       ═══════════════════════════════════════════════ -->
   <OnboardingModal
     onboardingActive={onboarding.active}
     onboardingStep={onboarding.step}
-    onboardingFivemSearching={onboarding.fivemSearching}
-    onboardingFivemResult={onboarding.fivemResult}
+    onboardingRageSearching={onboarding.rageSearching}
+    onboardingRageResult={onboarding.rageResult}
     onboardingNickname={onboarding.nickname}
     onboardingNicknameSaving={onboarding.nicknameSaving}
-    fivemPath={fivem.path}
-    isDownloading={fivem.downloading}
-    downloadPercent={fivem.downloadPercent}
-    downloadSize={fivem.downloadSize}
-    downloadError={fivem.downloadError}
-    statusMessage={fivem.statusMessage}
+    rageDir={game.rageDir}
+    clientReady={game.clientReady}
+    isDownloadingClient={game.isDownloadingClient}
+    clientDownloadPercent={game.clientDownloadPercent}
+    clientDownloadError={game.clientDownloadError}
+    statusMessage={game.statusMessage}
     onboardingNext={() => onboarding.onboardingNext(audio.playClickSound, { value: username }, (v) => { username = v; })}
-    onboardingSelectFivem={() => onboarding.onboardingSelectFivem(audio.playClickSound)}
-    onboardingDownloadFivem={() => onboarding.onboardingDownloadFivem(audio.playClickSound)}
+    onboardingSelectRageDir={() => game.selectRageDir(audio.playClickSound)}
     playHoverSound={audio.playHoverSound}
     onNicknameChange={(val) => { onboarding.nickname = val; }}
   />

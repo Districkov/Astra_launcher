@@ -1,23 +1,22 @@
 <!--
-  OnboardingModal.svelte — Модалка онбординга (4 шага: приветствие, FiveM, никнейм, готово)
+  OnboardingModal.svelte — Onboarding modal (4 steps: welcome, RAGE:MP, nickname, done)
 -->
 <script>
   let {
     onboardingActive = false,
     onboardingStep = 1,
-    onboardingFivemSearching = false,
-    onboardingFivemResult = null,
+    onboardingRageSearching = false,
+    onboardingRageResult = null,
     onboardingNickname = "",
     onboardingNicknameSaving = false,
-    fivemPath = "",
-    isDownloading = false,
-    downloadPercent = 0,
-    downloadSize = "",
-    downloadError = "",
+    rageDir = "",
+    clientReady = false,
+    isDownloadingClient = false,
+    clientDownloadPercent = 0,
+    clientDownloadError = "",
     statusMessage = "",
     onboardingNext = () => {},
-    onboardingSelectFivem = async () => {},
-    onboardingDownloadFivem = async () => {},
+    onboardingSelectRageDir = async () => {},
     playHoverSound = () => {},
     onNicknameChange = () => {},
   } = $props();
@@ -28,10 +27,9 @@
   <div class="absolute inset-0 z-[500] flex items-center justify-center bg-[#0d0d0d]/95 backdrop-blur-md animate-onboarding-in">
     <div class="flex flex-col items-center justify-center w-full h-full max-w-md px-8 animate-onboarding-content">
 
-      <!-- Шаг 1: Добро пожаловать -->
+      <!-- Step 1: Welcome -->
       {#if onboardingStep === 1}
         <div class="flex flex-col items-center text-center animate-onboarding-step">
-          <!-- Логотип ASTRA -->
           <div class="mb-2 text-white tracking-[-1.2px] leading-none"
                style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(246,74,70,0.4); font-size: clamp(32px, 4.2vw, 40px);">
             ASTRA
@@ -53,16 +51,15 @@
           </button>
         </div>
 
-      <!-- Шаг 2: Поиск FiveM -->
+      <!-- Step 2: Find RAGE:MP -->
       {:else if onboardingStep === 2}
         <div class="flex flex-col items-center text-center animate-onboarding-step">
-          <!-- Иконка поиска -->
           <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-            {#if onboardingFivemSearching}
+            {#if onboardingRageSearching}
               <svg class="w-8 h-8 text-[#f64a46] animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="9" stroke-dasharray="14 42" stroke-linecap="round"/>
               </svg>
-            {:else if onboardingFivemResult === 'found'}
+            {:else if onboardingRageResult === 'found'}
               <svg class="w-8 h-8 text-[#15ff00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
             {:else}
               <svg class="w-8 h-8 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -70,18 +67,18 @@
           </div>
 
           <h2 class="text-xl text-white mb-2" style="font-family: 'Proxima Nova Bold', sans-serif; font-weight: 700; letter-spacing: -0.40px;">
-            Поиск FiveM
+            Поиск RAGE:MP
           </h2>
 
-          {#if onboardingFivemSearching}
+          {#if onboardingRageSearching}
             <p class="text-sm text-white/40 mb-8" style="font-family: 'Proxima Nova Semibold', sans-serif;">
-              Ищем FiveM на вашем компьютере…
+              Ищем RAGE:MP на вашем компьютере…
             </p>
-          {:else if onboardingFivemResult === 'found'}
+          {:else if onboardingRageResult === 'found'}
             <p class="text-sm text-[#15ff00]/80 mb-2" style="font-family: 'Proxima Nova Semibold', sans-serif;">
-              ✓ FiveM найден автоматически
+              ✓ RAGE:MP найден автоматически
             </p>
-            <p class="text-xs text-white/20 mb-8 truncate max-w-xs">{fivemPath}</p>
+            <p class="text-xs text-white/20 mb-8 truncate max-w-xs">{rageDir}</p>
             <button
               class="px-10 py-3.5 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-base font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
               style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
@@ -90,42 +87,31 @@
             >
               Далее
             </button>
-          {:else if onboardingFivemResult === 'not_found'}
+          {:else if onboardingRageResult === 'not_found'}
             <p class="text-sm text-[#f64a46]/80 mb-6" style="font-family: 'Proxima Nova Semibold', sans-serif;">
-              FiveM не найден на вашем компьютере
+              RAGE:MP не найден на вашем компьютере
             </p>
 
-            {#if isDownloading}
-              <!-- Прогресс скачивания -->
+            {#if isDownloadingClient}
               <div class="w-full max-w-xs mb-4">
-                <p class="text-xs text-white/40 mb-2 text-center">{downloadSize || "Скачивание FiveM…"}</p>
+                <p class="text-xs text-white/40 mb-2 text-center">{clientDownloadPercent}%</p>
                 <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                   <div class="h-full bg-gradient-to-r from-[#f64a46] to-[#ff8c4d] rounded-full transition-all duration-300"
-                       style="width: {downloadPercent}%"></div>
+                       style="width: {clientDownloadPercent}%"></div>
                 </div>
-                <p class="text-xs text-white/20 mt-1 text-center">{downloadPercent}%</p>
               </div>
               {#if statusMessage}
                 <p class="text-xs text-white/50 mb-3 text-center max-w-xs">{statusMessage}</p>
               {/if}
             {:else}
-              <!-- Кнопки: скачать / указать путь -->
               <div class="flex flex-col gap-3 w-full max-w-xs">
-                <button
-                  class="w-full px-6 py-3 bg-[#f64a46] hover:bg-[#ff5a56] active:scale-[0.97] rounded-xl text-sm font-semibold transition-all duration-150 btn-ripple btn-bounce glow-hover"
-                  style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-                  onclick={onboardingDownloadFivem}
-                  onmouseenter={playHoverSound}
-                >
-                  Скачать FiveM
-                </button>
                 <button
                   class="w-full px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm text-white/50 hover:text-white/70 transition-all border border-white/5 btn-ripple"
                   style="font-family: 'Proxima Nova Semibold', sans-serif; font-weight: 600;"
-                  onclick={onboardingSelectFivem}
+                  onclick={onboardingSelectRageDir}
                   onmouseenter={playHoverSound}
                 >
-                  Указать путь вручную
+                  Указать папку вручную
                 </button>
                 <button
                   class="w-full px-6 py-2.5 bg-transparent hover:bg-white/5 rounded-xl text-xs text-white/30 hover:text-white/50 transition-all btn-ripple"
@@ -138,8 +124,8 @@
               </div>
             {/if}
 
-            {#if downloadError}
-              <p class="mt-3 text-xs text-red-400">{downloadError}</p>
+            {#if clientDownloadError}
+              <p class="mt-3 text-xs text-red-400">{clientDownloadError}</p>
             {/if}
           {:else}
             <p class="text-sm text-white/30 mb-8" style="font-family: 'Proxima Nova Semibold', sans-serif;">
@@ -148,10 +134,9 @@
           {/if}
         </div>
 
-      <!-- Шаг 3: Ввод никнейма -->
+      <!-- Step 3: Nickname -->
       {:else if onboardingStep === 3}
         <div class="flex flex-col items-center text-center animate-onboarding-step">
-          <!-- Иконка пользователя -->
           <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10">
             <svg class="w-8 h-8 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
@@ -166,7 +151,6 @@
             Введите имя для отображения на сервере
           </p>
 
-          <!-- Поле ввода никнейма -->
           <div class="w-full max-w-xs mb-8">
             <input
               type="text"
@@ -192,10 +176,9 @@
           </button>
         </div>
 
-      <!-- Шаг 4: Приятной игры! -->
+      <!-- Step 4: Done -->
       {:else if onboardingStep === 4}
         <div class="flex flex-col items-center text-center animate-onboarding-step">
-          <!-- Иконка ракеты -->
           <div class="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-[#f64a46]/10 border border-[#f64a46]/20">
             <svg class="w-8 h-8 text-[#f64a46]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/>
@@ -223,7 +206,7 @@
         </div>
       {/if}
 
-      <!-- Индикатор шагов -->
+      <!-- Step indicator -->
       <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2">
         {#each [1, 2, 3, 4] as step}
           <div class="w-2 h-2 rounded-full transition-all duration-300 {onboardingStep === step ? 'bg-[#f64a46] w-6' : onboardingStep > step ? 'bg-[#15ff00]/50' : 'bg-white/10'}"></div>

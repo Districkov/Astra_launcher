@@ -80,9 +80,9 @@ async function startUpdateDownload(playClickSound: () => void) {
     });
     const server = await getServerStore();
     server.addNotification("✅ Обновление установлено! Перезапуск...", "success");
-    // Перепроверяем FiveM путь перед перезапуском
-    const { getFivemStore } = await import("./fivemStore.svelte");
-    await getFivemStore().loadFivemPath();
+    // Перепроверяем путь клиента перед перезапуском
+    const { getGameStore } = await import("./gameStore.svelte");
+    await getGameStore().loadRageDir();
     setTimeout(() => {
       relaunch();
     }, 1000);

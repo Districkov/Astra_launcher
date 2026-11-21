@@ -5,7 +5,7 @@
   export let serverPlayers = 0;
   export let serverMaxPlayers = 0;
   export let serverLoading = false;
-  export let fivemFound = false;
+  export let clientReady = false;
   export let isLaunching = false;
   export let playLabel = "Играть";
   export let statusMessage = "";
@@ -27,7 +27,7 @@
   }
 
   export let selectMenu = () => {};
-  export let selectFivemPath = () => {};
+  export let selectRageDir = () => {};
   export let clearCache = () => {};
 
   import GTAV334 from "../assets/GTAV (33) 4.png";
@@ -121,10 +121,10 @@
       <div class="text-center space-y-6">
         <h2 class="font-black tracking-wider text-white drop-shadow-2xl" style="font-family: 'Armor Piercing 2.0 BB', 'Impact', sans-serif; text-shadow: 0 0 60px rgba(255,255,255,0.3); font-size: clamp(32px, 4.2vw, 40px);">ASTRA</h2>
 
-        {#if fivemFound}
+        {#if clientReady}
           <div class="flex items-center gap-2 justify-center">
             <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
-            <span class="text-sm text-green-400">FiveM готов к запуску</span>
+            <span class="text-sm text-green-400">Клиент готов к запуску</span>
           </div>
 
           <button
@@ -138,12 +138,8 @@
         {:else}
           <div class="flex items-center gap-2 justify-center mt-6">
             <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-            <span class="text-sm text-red-400">FiveM не установлен</span>
+            <span class="text-sm text-red-400">RAGE:MP не установлен</span>
           </div>
-
-          <button type="button" class="mt-12 px-16 py-4 rounded-3xl text-xl font-bold tracking-wide text-white bg-[#f64a46] hover:bg-[#ff6666] active:scale-95 transition-all shadow-2xl" on:click={downloadAndInstall}>
-            Скачать FiveM
-          </button>
         {/if}
 
         {#if statusMessage}
@@ -158,12 +154,12 @@
           <h2 class="text-4xl font-bold text-white mb-6">Настройки</h2>
 
           <div class="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">🎮 FiveM</h3>
+            <h3 class="text-lg font-semibold text-white mb-4">🎮 RAGE:MP</h3>
             <div class="flex gap-3 mb-4">
               <div class="flex-1 bg-black/50 rounded-lg px-4 py-2.5 text-xs text-gray-300 truncate border border-white/5">
-                {fivemFound ? "✓ Установлен" : "✗ Не найден"}
+                {clientReady ? "✓ Установлен" : "✗ Не найден"}
               </div>
-              <button class="px-6 py-2.5 bg-[#f64a46] hover:bg-[#ff6666] rounded-lg text-xs font-semibold text-white transition-colors" on:click={selectFivemPath}>
+              <button class="px-6 py-2.5 bg-[#f64a46] hover:bg-[#ff6666] rounded-lg text-xs font-semibold text-white transition-colors" on:click={selectRageDir}>
                 Выбрать
               </button>
             </div>
@@ -190,7 +186,7 @@
           <div class="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
             <h3 class="text-lg font-semibold text-white mb-3">ℹ️ О лаунчере</h3>
             <p class="text-xs text-gray-400">ASTRA Launcher v1.0</p>
-            <p class="text-xs text-gray-400 mt-2">Сервер: 185.176.94.21:30120</p>
+            <p class="text-xs text-gray-400 mt-2">Сервер: 89.35.130.191:22005</p>
             <p class="text-xs {serverOnline ? 'text-green-400' : 'text-red-400'} mt-2 font-medium">
               {serverOnline ? `Статус: Онлайн ${serverPlayers}/${serverMaxPlayers}` : "Статус: Сервер офлайн"}
             </p>

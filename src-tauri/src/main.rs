@@ -1,1435 +1,1151 @@
 //! ASTRA Launcher — Backend (Rust / Tauri v2)
 //! =========================================
-//! Подход на основе bartosjiri/fivem-launcher:
-//!   - Запуск через cmd.exe: FiveM.exe +connect IP:порт
-//!   - Поиск FiveM.exe в подпапках (FiveM.app и др.)
-//!   - Пользователь может указать путь вручную
-//!   - Статус сервера через /info.json и /players.json
-//!   - Встроенный webview для Telegram (add_child)
+//! RAGE:MP launcher with 3-step system:
+//!   1. Client file verification + download (SHA-256)
+//!   2. Server cache auto-download
+//!   3. Memory patching (CREATE_SUSPENDED + WriteProcessMemory)
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{command, Manager, Emitter, WebviewUrl};
-use tauri::webview::WebviewBuilder;
-use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent};
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
-use std::sync::Mutex;
+mod cache;
+mod client;
+mod config;
+mod discord;
+mod downloader;
+mod logging;
+mod manifest;
+mod patcher;
+mod paths;
+mod rui;
+mod server;
+mod username;
+mod window;
+
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 
-/// ─────────────────────────────────────────────
-/// 📝 ЛОГИРОВАНИЕ В ФАЙЛ
-/// ─────────────────────────────────────────────
-
-/// Простой логгер: пишет в %APPDATA%/astra-launcher/launcher.log
-fn log_to_file(level: &str, msg: &str) {
-    let log_path = launcher_data_dir().join("launcher.log");
-    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-    let line = format!("[{} {}] {}\n", timestamp, level, msg);
-    let _ = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-        .and_then(|mut f| f.write_all(line.as_bytes()));
-}
-
-/// Макросы для удобного логирования
-macro_rules! log_info  { ($($arg:tt)*) => { crate::log_to_file("INFO",  &format!($($arg)*)) } }
-#[allow(unused_macros)]
-macro_rules! log_warn  { ($($arg:tt)*) => { crate::log_to_file("WARN",  &format!($($arg)*)) } }
-macro_rules! log_error { ($($arg:tt)*) => { crate::log_to_file("ERROR", &format!($($arg)*)) } }
-
-/// Глобальное состояние Discord RPC
-static DISCORD_RPC: once_cell::sync::Lazy<Mutex<Option<DiscordIpcClient>>> = once_cell::sync::Lazy::new(|| Mutex::new(None));
-
-/// Глобальный HTTP-клиент (переиспользуется во всех командах)
-static HTTP_CLIENT: once_cell::sync::Lazy<reqwest::Client> = once_cell::sync::Lazy::new(|| {
-    reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .expect("Failed to create HTTP client")
-});
-
-/// ─────────────────────────────────────────────
-/// 🔧 КОНФИГУРАЦИЯ
-/// ─────────────────────────────────────────────
-
-/// Дефолтные значения (используются если config.json не найден)
-const DEFAULT_SERVER_ADDRESS: &str = "185.176.94.21:30120";
-const DEFAULT_FIVEM_DOWNLOAD_URL: &str = "https://runtime.fivem.net/client/FiveM.exe";
-const DEFAULT_PRECACHE_URL: &str = "http://185.176.94.21/precache.zip";
-
-/// Конфигурация лаунчера (читается из config.json при запуске)
-struct LauncherConfig {
-    server_address: String,
-    fivem_download_url: String,
-    precache_url: String,
-}
-
-impl LauncherConfig {
-    /// Загружает конфиг из %APPDATA%/astra-launcher/config.json
-    /// Если файл не найден — создаёт его с дефолтными значениями
-    fn load() -> Self {
-        let config_path = launcher_data_dir().join("config.json");
-
-        if config_path.exists() {
-            if let Ok(data) = fs::read_to_string(&config_path) {
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
-                    return Self {
-                        server_address: json.get("server_address")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(DEFAULT_SERVER_ADDRESS)
-                            .to_string(),
-                        fivem_download_url: json.get("fivem_download_url")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(DEFAULT_FIVEM_DOWNLOAD_URL)
-                            .to_string(),
-                        precache_url: json.get("precache_url")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(DEFAULT_PRECACHE_URL)
-                            .to_string(),
-                    };
-                }
-            }
-        }
-
-        // Файл не найден или битый — создаём с дефолтами
-        let config = Self {
-            server_address: DEFAULT_SERVER_ADDRESS.to_string(),
-            fivem_download_url: DEFAULT_FIVEM_DOWNLOAD_URL.to_string(),
-            precache_url: DEFAULT_PRECACHE_URL.to_string(),
-        };
-        config.save();
-        config
-    }
-
-    /// Сохраняет конфиг в файл
-    fn save(&self) {
-        let config_path = launcher_data_dir().join("config.json");
-        let json = serde_json::json!({
-            "server_address": self.server_address,
-            "fivem_download_url": self.fivem_download_url,
-            "precache_url": self.precache_url,
-        });
-        let _ = fs::write(&config_path, serde_json::to_string_pretty(&json).unwrap_or_default());
-    }
-}
-
-/// Глобальный конфиг (инициализируется один раз при старте)
-static CONFIG: once_cell::sync::Lazy<LauncherConfig> = once_cell::sync::Lazy::new(LauncherConfig::load);
-
-/// ─────────────────────────────────────────────
-/// 📁 ПУТИ
-/// ─────────────────────────────────────────────
-
-/// Папка данных лаунчера: %APPDATA%/astra-launcher/
-fn launcher_data_dir() -> PathBuf {
-    let appdata = dirs::data_dir().expect("Не удалось найти AppData");
-    let dir = appdata.join("astra-launcher");
-    fs::create_dir_all(&dir).ok();
-    dir
-}
-
-/// Путь к файлу настроек (хранит путь к FiveM.exe)
-fn settings_path() -> PathBuf {
-    launcher_data_dir().join("settings.json")
-}
-
-/// Путь к скачанному установщику FiveM
-fn fivem_installer_path() -> PathBuf {
-    launcher_data_dir().join("FiveM_install.exe")
-}
-
-/// ─────────────────────────────────────────────
-/// 🔍 ПОИСК FIVEM.EXE
-/// ─────────────────────────────────────────────
-/// FiveM устанавливается в %LocalAppData%\FiveM\
-/// Структура может быть разной:
-///   - FiveM\FiveM.exe
-///   - FiveM\FiveM.app\FiveM.exe
-///   - Program Files\FiveM\FiveM.exe
-/// Пользователь также может указать путь вручную.
-
-/// Ищет FiveM.exe во всех возможных местах.
-/// Возвращает путь, если найден.
-fn find_fivem_exe() -> Option<PathBuf> {
-    // 1. Проверяем пользовательский путь из настроек
-    if let Ok(data) = fs::read_to_string(settings_path()) {
-        if let Ok(settings) = serde_json::from_str::<serde_json::Value>(&data) {
-            if let Some(custom_path) = settings.get("fivem_path").and_then(|v| v.as_str()) {
-                let path = PathBuf::from(custom_path);
-                if path.exists() {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    // 2. Стандартные пути установки (используем env::var для надёжности)
-    let local_appdata_env = std::env::var("LOCALAPPDATA").ok();
-    let home_env = std::env::var("USERPROFILE").ok();
-    let local_appdata = dirs::data_local_dir().unwrap_or_default();
-    let home = dirs::home_dir().unwrap_or_default();
-
-    let mut search_paths: Vec<PathBuf> = vec![
-        // %LocalAppData%\FiveM\FiveM.exe (стандарт)
-        local_appdata.join("FiveM").join("FiveM.exe"),
-        // %LocalAppData%\FiveM\FiveM.app\FiveM.exe (альтернатива)
-        local_appdata.join("FiveM").join("FiveM.app").join("FiveM.exe"),
-        // Скачанный установщик (это тоже FiveM.exe — stub/полный клиент)
-        fivem_installer_path(),
-        // Program Files
-        PathBuf::from(r"C:\Program Files\FiveM\FiveM.exe"),
-        PathBuf::from(r"C:\Program Files (x86)\FiveM\FiveM.exe"),
-        // Desktop
-        home.join("Desktop").join("FiveM.exe"),
-        // Дополнительные варианты
-        local_appdata.join("FiveM Application").join("FiveM.exe"),
-        PathBuf::from(r"D:\FiveM\FiveM.exe"),
-    ];
-
-    // Добавляем пути через env::var (более надёжно чем dirs crate)
-    if let Some(la) = &local_appdata_env {
-        search_paths.push(PathBuf::from(la).join("FiveM").join("FiveM.exe"));
-        search_paths.push(PathBuf::from(la).join("FiveM").join("FiveM.app").join("FiveM.exe"));
-        // FiveM может также установиться в "FiveM Application"
-        search_paths.push(PathBuf::from(la).join("FiveM Application").join("FiveM.exe"));
-        search_paths.push(PathBuf::from(la).join("FiveM Application").join("FiveM.app").join("FiveM.exe"));
-    }
-    if let Some(h) = &home_env {
-        search_paths.push(PathBuf::from(h).join("Desktop").join("FiveM.exe"));
-    }
-
-    for path in &search_paths {
-        if path.exists() {
-            return Some(path.clone());
-        }
-    }
-
-    // 3. Проверяем .lnk ярлыки на рабочем столе
-    if let Some(h) = &home_env {
-        let desktop_lnk = PathBuf::from(h).join("Desktop").join("FiveM.lnk");
-        if desktop_lnk.exists() {
-            if let Some(target) = resolve_lnk_target(&desktop_lnk) {
-                if target.exists() {
-                    return Some(target);
-                }
-            }
-        }
-    }
-    let desktop_lnk = home.join("Desktop").join("FiveM.lnk");
-    if desktop_lnk.exists() {
-        if let Some(target) = resolve_lnk_target(&desktop_lnk) {
-            if target.exists() {
-                return Some(target);
-            }
-        }
-    }
-
-    // 3.5. Проверяем ярлыки в Start Menu (C:\Users\...\AppData\Roaming\Microsoft\Windows\Start Menu\Programs)
-    let roaming = std::env::var("APPDATA").unwrap_or_else(|_| String::new());
-    if !roaming.is_empty() {
-        let start_menu = PathBuf::from(&roaming).join("Microsoft").join("Windows").join("Start Menu").join("Programs");
-        if start_menu.exists() {
-            // Ищем FiveM.lnk рекурсивно в Start Menu
-            if let Some(found) = search_lnk_recursive(&start_menu, "FiveM") {
-                return Some(found);
-            }
-        }
-    }
-    // Также общий Start Menu для всех пользователей
-    let common_start = PathBuf::from(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs");
-    if common_start.exists() {
-        if let Some(found) = search_lnk_recursive(&common_start, "FiveM") {
-            return Some(found);
-        }
-    }
-
-    // 4. Рекурсивный поиск в %LocalAppData%\FiveM\ (на случай нестандартной структуры)
-    let fivem_dir = local_appdata.join("FiveM");
-    if fivem_dir.exists() {
-        if let Some(found) = search_exe_recursive(&fivem_dir, 3) {
-            return Some(found);
-        }
-    }
-    // Также через env::var
-    if let Some(la) = &local_appdata_env {
-        let fivem_dir_env = PathBuf::from(la).join("FiveM");
-        if fivem_dir_env.exists() {
-            if let Some(found) = search_exe_recursive(&fivem_dir_env, 3) {
-                return Some(found);
-            }
-        }
-    }
-
-    None
-}
-
-/// Разрешает .lnk ярлык и возвращает путь к целевому файлу (через PowerShell)
-#[cfg(target_os = "windows")]
-fn resolve_lnk_target(lnk_path: &PathBuf) -> Option<PathBuf> {
-    let output = Command::new("powershell")
-        .args([
-            "-NoProfile", "-NonInteractive", "-Command",
-            &format!("(New-Object -ComObject WScript.Shell).CreateShortcut('{}').TargetPath",
-                lnk_path.to_string_lossy().replace('\'', "''"))
-        ])
-        .creation_flags(0x00000008) // CREATE_NO_WINDOW
-        .output()
-        .ok()?;
-
-    let target = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if target.is_empty() || !target.contains(':') {
-        return None;
-    }
-    Some(PathBuf::from(target))
-}
-
-#[cfg(not(target_os = "windows"))]
-fn resolve_lnk_target(_lnk_path: &PathBuf) -> Option<PathBuf> {
-    None
-}
-
-/// Рекурсивно ищет FiveM.exe в папке (до max_depth уровней)
-/// Ищет .lnk ярлык рекурсивно в папке и разрешает его в путь к exe
-fn search_lnk_recursive(dir: &Path, name_contains: &str) -> Option<PathBuf> {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(found) = search_lnk_recursive(&path, name_contains) {
-                    return Some(found);
-                }
-            } else {
-                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if file_name.to_lowercase().contains(name_contains.to_lowercase().as_str())
-                    && file_name.ends_with(".lnk")
-                {
-                    if let Some(target) = resolve_lnk_target(&path) {
-                        if target.exists() {
-                            return Some(target);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn search_exe_recursive(dir: &PathBuf, max_depth: u32) -> Option<PathBuf> {
-    if max_depth == 0 {
-        return None;
-    }
-
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                if let Some(found) = search_exe_recursive(&path, max_depth - 1) {
-                    return Some(found);
-                }
-            } else if path.file_name().and_then(|n| n.to_str()) == Some("FiveM.exe") {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-/// ─────────────────────────────────────────────
-/// 🎮 КОМАНДЫ: ПРОВЕРКА / ЗАПУСК FIVEM
-/// ─────────────────────────────────────────────
-
-/// Диагностика установки FiveM — возвращает подробную информацию о папке
-#[command]
-fn diagnose_fivem_install() -> Result<serde_json::Value, String> {
-    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| "?".to_string());
-    let fivem_dir = PathBuf::from(&local_appdata).join("FiveM");
-
-    let mut info = serde_json::json!({
-        "fivem_dir": fivem_dir.to_string_lossy(),
-        "fivem_dir_exists": fivem_dir.exists(),
-    });
-
-    if fivem_dir.exists() {
-        // Считаем файлы в папке FiveM
-        let mut file_count: usize = 0;
-        let mut total_size: u64 = 0;
-        fn count_files(dir: &Path, count: &mut usize, size: &mut u64) {
-            if let Ok(entries) = fs::read_dir(dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        count_files(&path, count, size);
-                    } else {
-                        *count += 1;
-                        if let Ok(meta) = fs::metadata(&path) {
-                            *size += meta.len();
-                        }
-                    }
-                }
-            }
-        }
-        count_files(&fivem_dir, &mut file_count, &mut total_size);
-
-        info["file_count"] = serde_json::json!(file_count);
-        info["total_size_mb"] = serde_json::json!((total_size as f64 / 1_048_576.0).round());
-
-        // Проверяем FiveM.exe
-        let fivem_exe = fivem_dir.join("FiveM.exe");
-        info["fivem_exe_exists"] = serde_json::json!(fivem_exe.exists());
-        if fivem_exe.exists() {
-            if let Ok(meta) = fs::metadata(&fivem_exe) {
-                info["fivem_exe_size_mb"] = serde_json::json!((meta.len() as f64 / 1_048_576.0).round());
-            }
-        }
-
-        // Проверяем FiveM.app
-        let app_dir = fivem_dir.join("FiveM.app");
-        info["fivem_app_exists"] = serde_json::json!(app_dir.exists());
-        if app_dir.exists() {
-            let mut app_count: usize = 0;
-            let mut app_size: u64 = 0;
-            count_files(&app_dir, &mut app_count, &mut app_size);
-            info["fivem_app_file_count"] = serde_json::json!(app_count);
-            info["fivem_app_size_mb"] = serde_json::json!((app_size as f64 / 1_048_576.0).round());
-        }
-
-        // Список верхнеуровневых файлов/папок
-        let mut top_entries: Vec<String> = Vec::new();
-        if let Ok(entries) = fs::read_dir(&fivem_dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                let is_dir = entry.path().is_dir();
-                top_entries.push(if is_dir { format!("{}/", name) } else { name });
-            }
-        }
-        info["top_entries"] = serde_json::json!(top_entries);
-    }
-
-    // Проверяем установщик
-    let installer = fivem_installer_path();
-    info["installer_path"] = serde_json::json!(installer.to_string_lossy());
-    info["installer_exists"] = serde_json::json!(installer.exists());
-    if installer.exists() {
-        if let Ok(meta) = fs::metadata(&installer) {
-            info["installer_size_mb"] = serde_json::json!((meta.len() as f64 / 1_048_576.0).round());
-        }
-    }
-
-    // Проверяем запущен ли процесс FiveM
-    let check_script = r#"Get-Process | Where-Object { $_.ProcessName -match 'FiveM' } | Select-Object -First 5 | ForEach-Object { "$($_.ProcessName) (PID: $($_.Id))" }"#;
-    let check_output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", check_script])
-        .creation_flags(0x00000008)
-        .output()
-        .ok();
-    let processes = check_output
-        .and_then(|o| if o.status.success() { Some(String::from_utf8_lossy(&o.stdout).trim().to_string()) } else { None })
-        .unwrap_or_default();
-    info["fivem_processes"] = serde_json::json!(processes);
-
-    log_info!("diagnose_fivem_install: {}", serde_json::to_string_pretty(&info).unwrap_or_default());
-
-    Ok(info)
-}
-
-/// Проверяет, установлен ли FiveM.
-/// Проверяет не только наличие FiveM.exe, но и что установка завершена
-/// (папка FiveM.app содержит файлы — признак полной установки).
-#[command]
-fn check_fivem_installed() -> Result<bool, String> {
-    // Сначала проверяем через find_fivem_exe (полная проверка)
-    if let Some(exe_path) = find_fivem_exe() {
-        // FiveM.exe найден — проверяем, что установка завершена
-        if let Some(parent) = exe_path.parent() {
-            let app_dir = parent.join("FiveM.app");
-            if app_dir.exists() {
-                if let Ok(entries) = fs::read_dir(&app_dir) {
-                    let count = entries.count();
-                    if count > 5 {
-                        return Ok(true);
-                    }
-                }
-            }
-            if let Ok(meta) = fs::metadata(&exe_path) {
-                if meta.len() > 4_000_000 {
-                    return Ok(true);
-                }
-            }
-        }
-    }
-
-    // Если find_fivem_exe не нашёл — проверяем FiveM.app напрямую
-    // FiveM stub-установщик скачивает файлы в FiveM.app, но FiveM.exe
-    // может быть внутри FiveM.app или вообще отсутствовать на верхнем уровне
-    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| String::new());
-    let fivem_dir = PathBuf::from(&local_appdata).join("FiveM");
-
-    if fivem_dir.exists() {
-        let app_dir = fivem_dir.join("FiveM.app");
-        if app_dir.exists() {
-            // Считаем файлы рекурсивно в FiveM.app
-            let mut file_count: usize = 0;
-            let mut total_size: u64 = 0;
-            fn count_recursive(dir: &Path, count: &mut usize, size: &mut u64) {
-                if let Ok(entries) = fs::read_dir(dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_dir() {
-                            count_recursive(&path, count, size);
-                        } else {
-                            *count += 1;
-                            if let Ok(meta) = fs::metadata(&path) {
-                                *size += meta.len();
-                            }
-                        }
-                    }
-                }
-            }
-            count_recursive(&app_dir, &mut file_count, &mut total_size);
-
-            // Если в FiveM.app > 100 файлов и > 50 МБ — установка завершена
-            if file_count > 100 && total_size > 50_000_000 {
-                log_info!("check_fivem_installed: FiveM.app содержит {} файлов ({} МБ) — установка завершена", 
-                    file_count, total_size / 1_048_576);
-                return Ok(true);
-            }
-
-            log_info!("check_fivem_installed: FiveM.app содержит {} файлов ({} МБ) — установка может быть неполной",
-                file_count, total_size / 1_048_576);
-        }
-
-        // Проверяем структуру FiveM.app\FiveM.exe (внутренний путь)
-        let inner_exe = app_dir.join("FiveM.exe");
-        if inner_exe.exists() {
-            if let Ok(meta) = fs::metadata(&inner_exe) {
-                if meta.len() > 4_000_000 {
-                    log_info!("check_fivem_installed: FiveM.app\\FiveM.exe найден ({} МБ)", meta.len() / 1_048_576);
-                    return Ok(true);
-                }
-            }
-        }
-
-        // Проверяем CitizenFX.ini — признак установленного FiveM
-        let citizen_ini = app_dir.join("CitizenFX.ini");
-        if citizen_ini.exists() {
-            log_info!("check_fivem_installed: CitizenFX.ini найден — FiveM установлен");
-            return Ok(true);
-        }
-    }
-
-    log_info!("check_fivem_installed: FiveM не найден");
-    Ok(false)
-}
-
-/// Возвращает текущий путь к FiveM.exe (или пустую строку если не найден)
-#[command]
-fn get_fivem_path() -> Result<String, String> {
-    match find_fivem_exe() {
-        Some(path) => Ok(path.to_string_lossy().to_string()),
-        None => Ok(String::new()),
-    }
-}
-
-/// Сохраняет пользовательский путь к FiveM.exe
-/// Читает существующий settings.json и обновляет только поле fivem_path
-#[command]
-fn set_fivem_path(path: String) -> Result<(), String> {
-    let sp = settings_path();
-
-    // Читаем существующий конфиг или создаём пустой
-    let mut settings: serde_json::Value = if sp.exists() {
-        fs::read_to_string(&sp)
-            .ok()
-            .and_then(|data| serde_json::from_str(&data).ok())
-            .unwrap_or(serde_json::json!({}))
-    } else {
-        serde_json::json!({})
-    };
-
-    // Обновляем только fivem_path
-    settings["fivem_path"] = serde_json::Value::String(path);
-
-    fs::write(&sp, serde_json::to_string_pretty(&settings).unwrap())
-        .map_err(|e| format!("Ошибка сохранения: {}", e))
-}
-
-/// Автоматический поиск FiveM.exe — ищет и сохраняет путь, если найден
-/// Читает существующий settings.json и обновляет только поле fivem_path
-#[command]
-fn auto_find_fivem() -> Result<Option<String>, String> {
-    match find_fivem_exe() {
-        Some(path) => {
-            let path_str = path.to_string_lossy().to_string();
-            let sp = settings_path();
-
-            // Read existing settings and merge — don't overwrite other fields
-            let mut settings: serde_json::Value = if sp.exists() {
-                fs::read_to_string(&sp)
-                    .ok()
-                    .and_then(|data| serde_json::from_str(&data).ok())
-                    .unwrap_or(serde_json::json!({}))
-            } else {
-                serde_json::json!({})
-            };
-
-            settings["fivem_path"] = serde_json::Value::String(path_str.clone());
-            let _ = fs::write(&sp, serde_json::to_string_pretty(&settings).unwrap());
-            Ok(Some(path_str))
-        }
-        None => Ok(None),
-    }
-}
-
-/// Запускает FiveM и подключается к серверу.
-/// Запускает FiveM.exe через cmd /c start — FiveM увидит explorer как родителя
-/// (cmd /c start открывает процесс через ShellExecuteEx, как если бы кликнули в проводнике)
-#[command]
-fn launch_game() -> Result<String, String> {
-    let fivem_exe = find_fivem_exe().ok_or("FIVEM_NOT_FOUND")?;
-
-    let exe_str = fivem_exe.to_string_lossy().to_string();
-
-    // Валидация: путь должен заканчиваться на FiveM.exe
-    if !exe_str.to_lowercase().ends_with("fivem.exe") {
-        return Err("FIVEM_NOT_FOUND".to_string());
-    }
-
-    // FiveM проверяет, что запущен из оболочки (explorer.exe) или браузера
-    // Ни spawn(), ни ShellExecuteW, ни cmd /c start НЕ работают — FiveM видит наш процесс
-    // Единственный рабочий способ: explorer.exe + fivem:// протокол
-    // explorer.exe — это и есть "shell", FiveM видит его как родителя и не крашится
-    #[cfg(target_os = "windows")]
-    {
-        let url = format!("fivem://connect/{}", CONFIG.server_address);
-        Command::new("explorer.exe")
-            .arg(&url)
-            .creation_flags(0x00000008) // CREATE_NO_WINDOW
-            .spawn()
-            .map_err(|e| format!("Не удалось запустить FiveM: {}", e))?;
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        Command::new(&exe_str)
-            .args(["+connect", &CONFIG.server_address])
-            .spawn()
-            .map_err(|e| format!("Не удалось запустить FiveM: {}", e))?;
-    }
-
-    Ok(format!("Подключение к {}", CONFIG.server_address))
-}
-
-/// ─────────────────────────────────────────────
-/// 📥 СКАЧИВАНИЕ FIVEM С ПРОГРЕССОМ
-/// ─────────────────────────────────────────────
-
-#[command]
-async fn download_fivem(window: tauri::Window) -> Result<String, String> {
-    log_info!("download_fivem: начало скачивания");
-    let dest = fivem_installer_path();
-
-    // Если установщик уже скачан — не скачиваем повторно
-    if dest.exists() {
-        if let Ok(meta) = fs::metadata(&dest) {
-            if meta.len() > 1_000_000 {
-                // Файл > 1 МБ — считаем что скачан полностью
-                return Ok(dest.to_string_lossy().to_string());
-            }
-        }
-        // Файл слишком мал (битый) — удаляем и скачиваем заново
-        let _ = fs::remove_file(&dest);
-    }
-
-    let client = &*HTTP_CLIENT;
-    let response = client
-        .get(&CONFIG.fivem_download_url)
-        .send()
+use tauri::command;
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent, TrayIconBuilder};
+use tauri::Manager;
+
+use crate::config::LauncherConfig;
+use crate::logging::{log_error, log_info, log_warn};
+use crate::manifest::CheckResult;
+use crate::patcher::{LaunchOptions, PatchManifest};
+
+/// ── Global State ──
+
+static CONFIG: once_cell::sync::Lazy<LauncherConfig> =
+    once_cell::sync::Lazy::new(LauncherConfig::load);
+
+/// ── Tauri Commands: Client ──
+//
+// NOTE ON ASYNC: in Tauri, a *synchronous* command runs on the **main thread**
+// and blocks the UI while it executes. `find_rage_dir` walks several directory
+// trees and spawns PowerShell to resolve `.lnk` shortcuts, and the RUI commands
+// read a 15 MB archive — none of that may happen on the main thread. Every
+// command that touches the filesystem or the registry is therefore `async` and
+// hands the work to `spawn_blocking`.
+
+/// Run a blocking closure off the main thread, mapping join errors to strings.
+async fn blocking<T, F>(what: &'static str, f: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(f)
         .await
-        .map_err(|e| format!("Ошибка подключения: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Сервер вернул статус {}", response.status()));
-    }
-
-    let total_size = response.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
-
-    let mut file =
-        fs::File::create(&dest).map_err(|e| format!("Ошибка создания файла: {}", e))?;
-
-    let mut stream = response.bytes_stream();
-    use futures_util::StreamExt;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Ошибка чтения: {}", e))?;
-        file.write_all(&chunk)
-            .map_err(|e| format!("Ошибка записи: {}", e))?;
-        downloaded += chunk.len() as u64;
-
-        let percent = if total_size > 0 {
-            (downloaded as f64 / total_size as f64 * 100.0) as u32
-        } else {
-            0
-        };
-
-        let payload = serde_json::json!({
-            "downloaded": downloaded,
-            "total": total_size,
-            "percent": percent
-        });
-        let _ = window.emit("download-progress", &payload);
-    }
-
-    Ok(dest.to_string_lossy().to_string())
+        .map_err(|e| format!("{} task failed: {}", what, e))?
 }
 
-/// ─────────────────────────────────────────────
-/// 📦 ЗАПУСК УСТАНОВЩИКА FIVEM
-/// ─────────────────────────────────────────────
-
-/// Добавляет папку FiveM в исключения Windows Defender.
-/// Это предотвращает удаление файлов установщика антивирусом.
-/// Использует Start-Process -Verb RunAs для запроса прав админа через UAC.
 #[command]
-fn add_defender_exclusion() -> Result<String, String> {
-    log_info!("add_defender_exclusion: добавление исключения Defender");
-
-    let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\Users\Default\AppData\Local".to_string());
-    let fivem_dir = PathBuf::from(local_appdata).join("FiveM");
-
-    // Создаём папку FiveM заранее
-    fs::create_dir_all(&fivem_dir).ok();
-
-    let fivem_dir_str = fivem_dir.to_string_lossy().to_string();
-
-    // Путь к самому Astra Launcher (папка где лежит exe)
-    let astra_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from(r"C:\Program Files\ASTRA Launcher"));
-    let astra_dir_str = astra_dir.to_string_lossy().to_string();
-
-    // Записываем скрипт во временный .ps1 файл
-    let ps1_content = format!(
-        "Add-MpPreference -ExclusionPath '{}'; Add-MpPreference -ExclusionPath '{}'",
-        fivem_dir_str.replace('\'', "''"),
-        astra_dir_str.replace('\'', "''")
-    );
-
-    let temp_dir = std::env::temp_dir();
-    let ps1_path = temp_dir.join("astra_defender_exclusion.ps1");
-    fs::write(&ps1_path, &ps1_content)
-        .map_err(|e| format!("Не удалось создать временный файл: {}", e))?;
-
-    let ps1_path_str = ps1_path.to_string_lossy().to_string();
-
-    // Запускаем скрипт с правами админа через UAC
-    // -ExecutionPolicy Bypass чтобы обойти политику выполнения скриптов
-    let script = format!(
-        "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','{}' -Wait",
-        ps1_path_str
-    );
-
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-        .creation_flags(0x00000008) // CREATE_NO_WINDOW
-        .output()
-        .map_err(|e| format!("Не удалось запустить PowerShell: {}", e))?;
-
-    // Удаляем временный файл
-    let _ = fs::remove_file(&ps1_path);
-
-    if output.status.success() {
-        log_info!("add_defender_exclusion: исключения добавлены для {} и {}", fivem_dir_str, astra_dir_str);
-        Ok(format!("Исключения добавлены: {} и {}", fivem_dir_str, astra_dir_str))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log_error!("add_defender_exclusion: ошибка: {}", stderr);
-        // Пользователь мог отклонить UAC
-        if stderr.contains("0x80070005") || stderr.contains("Access is denied") || stderr.contains("отказано") {
-            Err("UAC_DENIED".to_string())
-        } else {
-            Err(format!("Ошибка добавления исключения: {}", stderr))
-        }
-    }
+async fn check_client_installed() -> Result<bool, String> {
+    blocking("check_client_installed", || {
+        Ok(client::check_client_installed(&CONFIG))
+    })
+    .await
 }
 
-/// Запускает скачанный FiveM.exe БЕЗ прав админа.
-/// Запуск с -Verb RunAs устанавливал FiveM в профиль администратора,
-/// а не текущего пользователя — папка оставалась пустой.
-/// Теперь запускаем от имени текущего пользователя, чтобы FiveM
-/// установился в правильный %LOCALAPPDATA%\FiveM.
-/// Defender исключение добавляется отдельно (до запуска).
 #[command]
-fn launch_fivem_installer() -> Result<String, String> {
-    log_info!("launch_fivem_installer: запуск FiveM от имени текущего пользователя");
-    let installer = fivem_installer_path();
-
-    if !installer.exists() {
-        log_error!("Установщик не найден: {:?}", installer);
-        return Err("Установщик не найден. Скачайте FiveM сначала.".to_string());
-    }
-
-    // Проверяем размер файла
-    if let Ok(meta) = fs::metadata(&installer) {
-        log_info!("launch_fivem_installer: размер файла: {} байт", meta.len());
-        if meta.len() < 1_000_000 {
-            log_error!("launch_fivem_installer: файл слишком мал ({}) — повреждён", meta.len());
-            return Err("Файл повреждён (слишком мал). Попробуйте скачать заново.".to_string());
-        }
-    }
-
-    let installer_str = installer.to_string_lossy().to_string();
-    log_info!("launch_fivem_installer: путь: {}", installer_str);
-
-    // Запускаем БЕЗ повышения прав — FiveM установится в профиль текущего пользователя
-    let child = Command::new(&installer_str)
-        .creation_flags(0x00000008) // CREATE_NO_WINDOW — не показываем консоль
-        .spawn()
-        .map_err(|e| {
-            log_error!("launch_fivem_installer: не удалось запустить: {}", e);
-            format!("Не удалось запустить FiveM: {}", e)
-        })?;
-
-    let pid = child.id();
-    log_info!("launch_fivem_installer: FiveM запущен (PID: {})", pid);
-    Ok(format!("FiveM запущен (PID: {})", pid))
-}
-
-/// ─────────────────────────────────────────────
-/// 🌐 СТАТУС СЕРВЕРА
-/// ─────────────────────────────────────────────
-
-/// Получает статус сервера через /info.json и /players.json
-#[command]
-async fn get_server_status() -> Result<serde_json::Value, String> {
-    log_info!("get_server_status: запрос статуса сервера");
-    let client = &*HTTP_CLIENT;
-
-    // Запрашиваем info.json
-    let info = match client
-        .get(format!("http://{}/info.json", CONFIG.server_address))
-        .timeout(std::time::Duration::from_secs(5))
-        .send()
-        .await
-    {
-        Ok(resp) => resp.json::<serde_json::Value>().await.ok(),
-        Err(_) => None,
-    };
-
-    // Запрашиваем players.json
-    let players = match client
-        .get(format!("http://{}/players.json", CONFIG.server_address))
-        .timeout(std::time::Duration::from_secs(5))
-        .send()
-        .await
-    {
-        Ok(resp) => resp.json::<serde_json::Value>().await.ok(),
-        Err(_) => None,
-    };
-
-    let online = info.is_some();
-    let players_count = players
-        .as_ref()
-        .and_then(|p| p.as_array())
-        .map(|arr| arr.len())
-        .unwrap_or(0);
-    let max_players = info
-        .as_ref()
-        .and_then(|i| i.get("vars"))
-        .and_then(|v| v.get("sv_maxClients"))
-        .and_then(|m| m.as_u64())
-        .unwrap_or(0);
-
-    Ok(serde_json::json!({
-        "online": online,
-        "players": players_count,
-        "max_players": max_players,
-        "info": info,
-    }))
-}
-
-/// ─────────────────────────────────────────────
-/// � ПРЕДЗАГРУЗКА КЕША СЕРВЕРА
-/// ─────────────────────────────────────────────
-
-/// URL для скачивания кеша сервера — берётся из CONFIG (config.json)
-/// Путь к кешу FiveM: %LocalAppData%\FiveM\FiveM.app\data\server-cache-priv\
-fn fivem_server_cache_dir() -> Option<PathBuf> {
-    let local_appdata = std::env::var("LOCALAPPDATA").ok()?;
-    Some(PathBuf::from(local_appdata)
-        .join("FiveM")
-        .join("FiveM.app")
-        .join("data")
-        .join("server-cache-priv"))
-}
-
-/// Проверяет, нужна ли предзагрузка (кеш пуст или почти пуст)
-#[command]
-fn check_precache_needed() -> Result<serde_json::Value, String> {
-    let cache_dir = fivem_server_cache_dir()
-        .ok_or("Не удалось найти папку кеша FiveM")?;
-
-    if !cache_dir.exists() {
-        return Ok(serde_json::json!({
-            "needed": true,
-            "reason": "Кеш FiveM не найден (первый запуск)"
-        }));
-    }
-
-    // Считаем cache_* файлы
-    let cache_files: Vec<_> = fs::read_dir(&cache_dir)
-        .map_err(|e| format!("Ошибка чтения кеша: {}", e))?
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_name()
-                .to_string_lossy()
-                .starts_with("cache_")
+async fn get_rage_dir() -> Result<String, String> {
+    blocking("get_rage_dir", || {
+        Ok(match client::find_rage_dir(&CONFIG) {
+            Some(path) => path.to_string_lossy().to_string(),
+            None => String::new(),
         })
-        .collect();
-
-    let count = cache_files.len();
-    let total_size: u64 = cache_files
-        .iter()
-        .filter_map(|f| f.metadata().ok())
-        .map(|m| m.len())
-        .sum();
-
-    // Если кеш < 50 МБ или < 100 файлов — нужна предзагрузка
-    let needed = count < 100 || total_size < 50_000_000;
-
-    Ok(serde_json::json!({
-        "needed": needed,
-        "reason": if needed { "Кеш сервера пуст или неполный" } else { "Кеш сервера актуален" },
-        "cache_files": count,
-        "cache_size_mb": (total_size as f64 / 1_048_576.0).round()
-    }))
+    })
+    .await
 }
 
-/// Скачивает и распаковывает кеш сервера с прогрессом
+/// Save the RAGE:MP folder.
+///
+/// Returns the *normalised* path plus whether it looks like a real install —
+/// the caller must not assume success. A file path is converted to its parent
+/// folder (the picker used to be a file dialog).
 #[command]
-async fn precache_server_files(window: tauri::Window) -> Result<serde_json::Value, String> {
-    log_info!("precache_server_files: начало предзагрузки кеша");
-    let cache_dir = fivem_server_cache_dir()
-        .ok_or("Не удалось найти папку кеша FiveM")?;
+async fn set_rage_dir(path: String) -> Result<serde_json::Value, String> {
+    blocking("set_rage_dir", move || {
+        let (normalized, valid) = client::save_rage_dir(&path)?;
+        Ok(serde_json::json!({
+            "path": normalized,
+            "valid": valid,
+        }))
+    })
+    .await
+}
 
-    // Создаём папку если нет
-    fs::create_dir_all(&cache_dir)
-        .map_err(|e| format!("Ошибка создания папки кеша: {}", e))?;
-
-    // Путь для временного ZIP
-    let zip_path = launcher_data_dir().join("precache.zip");
-
-    // Скачиваем ZIP с прогрессом
-    let client = &*HTTP_CLIENT;
-    let response = client
-        .get(&CONFIG.precache_url)
-        .timeout(std::time::Duration::from_secs(300)) // 5 мин на скачивание
-        .send()
-        .await
-        .map_err(|e| format!("Ошибка подключения к серверу: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Сервер вернул статус {} (возможно precache.zip ещё не создан)", response.status()));
-    }
-
-    let total_size = response.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
-
-    let mut file = fs::File::create(&zip_path)
-        .map_err(|e| format!("Ошибка создания файла: {}", e))?;
-
-    let mut stream = response.bytes_stream();
-    use futures_util::StreamExt;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Ошибка чтения: {}", e))?;
-        file.write_all(&chunk)
-            .map_err(|e| format!("Ошибка записи: {}", e))?;
-        downloaded += chunk.len() as u64;
-
-        let percent = if total_size > 0 {
-            (downloaded as f64 / total_size as f64 * 100.0) as u32
-        } else {
-            0
-        };
-
-        let payload = serde_json::json!({
-            "phase": "download",
-            "downloaded": downloaded,
-            "total": total_size,
-            "percent": percent
-        });
-        let _ = window.emit("precache-progress", &payload);
-    }
-
-    drop(file); // Закрываем файл перед распаковкой
-
-    // Распаковываем ZIP
-    let payload = serde_json::json!({
-        "phase": "extract",
-        "percent": 0
-    });
-    let _ = window.emit("precache-progress", &payload);
-
-    let zip_file = fs::File::open(&zip_path)
-        .map_err(|e| format!("Ошибка открытия ZIP: {}", e))?;
-
-    let mut archive = zip::ZipArchive::new(zip_file)
-        .map_err(|e| format!("Ошибка чтения ZIP: {}", e))?;
-
-    let total_files = archive.len();
-    let mut extracted = 0;
-
-    for i in 0..total_files {
-        let mut zip_file = archive.by_index(i)
-            .map_err(|e| format!("Ошибка чтения файла из ZIP: {}", e))?;
-
-        let outpath = match zip_file.enclosed_name() {
-            Some(path) => cache_dir.join(path),
-            None => continue,
-        };
-
-        // Создаём родительские папки
-        if let Some(parent) = outpath.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Ошибка создания папки: {}", e))?;
+#[command]
+async fn auto_find_rage_dir() -> Result<Option<String>, String> {
+    blocking("auto_find_rage_dir", || {
+        match client::find_rage_dir(&CONFIG) {
+            Some(path) => {
+                let path_str = path.to_string_lossy().to_string();
+                let _ = client::save_rage_dir(&path_str);
+                Ok(Some(path_str))
+            }
+            None => Ok(None),
         }
+    })
+    .await
+}
 
-        // Пропускаем папки (созданы выше)
-        if zip_file.is_dir() {
-            continue;
-        }
+/// ── Tauri Commands: Manifest + Download ──
 
-        // Копируем файл
-        let mut outfile = fs::File::create(&outpath)
-            .map_err(|e| format!("Ошибка создания файла: {}", e))?;
-        std::io::copy(&mut zip_file, &mut outfile)
-            .map_err(|e| format!("Ошибка записи файла: {}", e))?;
-
-        extracted += 1;
-        let percent = (extracted as f64 / total_files as f64 * 100.0) as u32;
-
-        let payload = serde_json::json!({
-            "phase": "extract",
-            "percent": percent,
-            "extracted": extracted,
-            "total_files": total_files
-        });
-        let _ = window.emit("precache-progress", &payload);
+#[command]
+async fn check_client_files() -> Result<CheckResult, String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    match manifest::fetch_manifest_or_skip(&CONFIG.client_manifest_url).await? {
+        Some(manifest) => Ok(manifest::verify_files(&rage_dir, &manifest)),
+        None => Ok(CheckResult {
+            valid: true,
+            missing: Vec::new(),
+            outdated: Vec::new(),
+            total_download_size: 0,
+            skipped: true,
+        }),
     }
-
-    // Удаляем временный ZIP
-    let _ = fs::remove_file(&zip_path);
-
-    Ok(serde_json::json!({
-        "success": true,
-        "extracted_files": extracted,
-        "cache_dir": cache_dir.to_string_lossy().to_string()
-    }))
 }
 
-/// ─────────────────────────────────────────────
-/// �🖥️ УПРАВЛЕНИЕ ОКНАМИ
-/// ─────────────────────────────────────────────
-
 #[command]
-fn show_main_window(window: tauri::Window) -> Result<(), String> {
-    let app = window.app_handle();
+async fn download_client_files(window: tauri::Window) -> Result<(), String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    let manifest = match manifest::fetch_manifest_or_skip(&CONFIG.client_manifest_url).await? {
+        Some(m) => m,
+        None => {
+            log_info!("No client manifest configured — nothing to download");
+            return Ok(());
+        }
+    };
+    let check = manifest::verify_files(&rage_dir, &manifest);
 
-    let main_webview_window = app
-        .get_webview_window("main")
-        .ok_or("Главное окно не найдено")?;
-
-    main_webview_window.show().map_err(|e| format!("Ошибка показа окна: {}", e))?;
-    main_webview_window.set_focus().map_err(|e| format!("Ошибка фокуса: {}", e))?;
-
-    window.close().map_err(|e| format!("Ошибка закрытия splash: {}", e))?;
-
-    Ok(())
-}
-
-/// Создаёт встроенный webview внутри главного окна для отображения Telegram
-#[command]
-async fn create_embedded_webview(url: String, window: tauri::Window) -> Result<(), String> {
-    log_info!("create_embedded_webview: URL={}", url);
-    let app = window.app_handle();
-
-    // Проверяем, не существует ли уже webview с этой меткой
-    if app.get_webview("embedded-webview").is_some() {
-        // Уже есть — просто показываем
+    if check.valid {
         return Ok(());
     }
 
-    let parsed_url: url::Url = url
-        .parse()
-        .map_err(|e: url::ParseError| format!("Некорректный URL: {}", e))?;
+    let mut files_to_download = check.missing;
+    files_to_download.extend(check.outdated);
 
-    // Валидация: разрешаем только t.me и telegram.org
-    let host = parsed_url.host_str().unwrap_or("");
-    let allowed_hosts = ["t.me", "www.t.me", "telegram.org", "web.telegram.org", "oauth.telegram.org"];
-    if !allowed_hosts.iter().any(|&h| host == h || host.ends_with(&format!(".{}", h))) {
-        return Err(format!("URL не разрешён: {}. Допускаются только t.me и telegram.org", host));
-    }
-
-    // Получаем нативное окно (не WebviewWindow) — add_child доступен на Window
-    let main_window = app
-        .get_window("main")
-        .ok_or("Главное окно не найдено")?;
-
-    // Позиция: справа от сайдбара (157px), ниже кнопок управления окном (32px сверху)
-    let position = tauri::LogicalPosition::new(157.0, 32.0);
-    let size = tauri::LogicalSize::new(803.0, 568.0);
-
-    let webview_builder = WebviewBuilder::new("embedded-webview", WebviewUrl::External(parsed_url))
-        .auto_resize();
-
-    main_window
-        .add_child(webview_builder, position, size)
-        .map_err(|e| format!("Ошибка создания webview: {}", e))?;
-
-    Ok(())
+    downloader::download_files(&rage_dir, &files_to_download, &CONFIG.file_download_base_url, &window).await
 }
 
-/// Закрывает встроенный webview
+/// ── Tauri Commands: Server Cache ──
+
 #[command]
-fn close_embedded_webview(window: tauri::Window) -> Result<(), String> {
-    let app = window.app_handle();
-
-    if let Some(webview) = app.get_webview("embedded-webview") {
-        webview.close().map_err(|e| format!("Ошибка закрытия webview: {}", e))?;
+async fn check_server_cache() -> Result<serde_json::Value, String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    match cache::check_cache_needed_or_skip(&rage_dir, &CONFIG.cache_info_url).await? {
+        Some((needed, local_ver, server_ver, _info)) => Ok(serde_json::json!({
+            "needed": needed,
+            "skipped": false,
+            "reason": if needed {
+                if local_ver.is_empty() { "first_run".to_string() } else { format!("local '{}' != server '{}'", local_ver, server_ver) }
+            } else { "up_to_date".to_string() },
+            "version_local": local_ver,
+            "version_server": server_ver,
+        })),
+        None => Ok(serde_json::json!({
+            "needed": false,
+            "skipped": true,
+            "reason": "cache endpoint not configured or unreachable — trusting installed client",
+            "version_local": cache::get_local_cache_version(&rage_dir),
+            "version_server": "",
+        })),
     }
-
-    Ok(())
 }
 
-/// ─────────────────────────────────────────────
-///  ИМЯ ПОЛЬЗОВАТЕЛЯ
-/// ─────────────────────────────────────────────
-
-/// Возвращает текущую конфигурацию лаунчера (для фронтенда)
 #[command]
-fn get_launcher_config() -> Result<serde_json::Value, String> {
+async fn download_server_cache(window: tauri::Window) -> Result<(), String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    let (_needed, _local_ver, _server_ver, cache_info) =
+        match cache::check_cache_needed_or_skip(&rage_dir, &CONFIG.cache_info_url).await? {
+            Some(v) => v,
+            None => {
+                log_info!("No cache endpoint configured — nothing to download");
+                return Ok(());
+            }
+        };
+
+    cache::download_cache(&rage_dir, &cache_info, &window).await
+}
+
+/// ── Tauri Commands: Patches + Launch ──
+
+/// Resolve the patch table to use.
+///
+/// Priority: server-supplied manifest (when `patches_url` is configured and
+/// reachable) → built-in table ported from tiny-ragemp-launcher. The built-in
+/// fallback is what keeps the launcher working if the patch endpoint is down,
+/// which is the whole point of the preserved project.
+async fn resolve_patch_manifest() -> PatchManifest {
+    if !CONFIG.patches_url.is_empty() {
+        match patcher::download_patches(&CONFIG.patches_url).await {
+            Ok(m) if !m.patches.is_empty() => {
+                log_info!("Using server patch manifest v{}", m.version);
+                return m;
+            }
+            Ok(_) => log_warn!("Server patch manifest was empty — falling back to built-in"),
+            Err(e) => log_warn!("Server patch manifest unavailable ({}) — falling back to built-in", e),
+        }
+    } else {
+        log_info!("patches_url not configured — using built-in patch table");
+    }
+    patcher::builtin_patch_manifest()
+}
+
+#[command]
+async fn get_patch_manifest() -> Result<serde_json::Value, String> {
+    let m = resolve_patch_manifest().await;
     Ok(serde_json::json!({
-        "server_address": CONFIG.server_address,
-        "fivem_download_url": CONFIG.fivem_download_url,
-        "precache_url": CONFIG.precache_url,
+        "version": m.version,
+        "ragemp_version": m.ragemp_version,
+        "gta_build": m.gta_build,
+        "count": m.patches.len(),
+        "source": if m.version.starts_with("builtin") { "builtin" } else { "server" },
+        "upstream": patcher::upstream_patch_source(),
+        "patches": m.patches,
     }))
 }
 
-/// Получает имя пользователя из конфига FiveM.
-/// FiveM хранит имя в файле %AppData%\FiveM\FiveM.app\citizen\common\data\ или
-/// в реестре / кэше. Пробуем несколько вариантов.
+/// Report the current patch state of the installed updater.exe.
 #[command]
-fn get_username() -> Result<String, String> {
-    // 1. Проверяем кэш лаунчера (если пользователь уже заходил)
-    let cached_name_path = launcher_data_dir().join("cached_username.txt");
-    if let Ok(name) = fs::read_to_string(&cached_name_path) {
-        let trimmed = name.trim().to_string();
-        if !trimmed.is_empty() {
-            return Ok(trimmed);
-        }
-    }
+async fn check_patch_status() -> Result<serde_json::Value, String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    let updater = rage_dir.join("updater.exe");
+    let manifest = resolve_patch_manifest().await;
 
-    // 2. Пытаемся прочитать из реестра Windows (FiveM сохраняет имя там)
-    let username = get_fivem_username_from_registry()
-        .or_else(|| get_fivem_username_from_config())
-        .unwrap_or_else(|| "Player".to_string());
+    let (applied, total) = patcher::patch_status(&updater, &manifest.patches)?;
 
-    // Кэшируем найденное имя
-    let _ = fs::write(&cached_name_path, &username);
-
-    Ok(username)
-}
-
-/// Читает имя из реестра Windows (FiveM может хранить его там)
-fn get_fivem_username_from_registry() -> Option<String> {
-    use std::process::Command as Cmd;
-
-    let output = Cmd::new("reg")
-        .args(["query", r"HKCU\Software\FiveM", "/v", "name"])
-        .output()
-        .ok()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Парсим вывод реестра: ищем значение после "REG_SZ"
-    for line in stdout.lines() {
-        if line.contains("REG_SZ") {
-            let parts: Vec<&str> = line.split("REG_SZ").collect();
-            if parts.len() > 1 {
-                let name = parts[1].trim().to_string();
-                if !name.is_empty() {
-                    return Some(name);
+    // Is the installed binary still the verified reference build?
+    let on_reference = {
+        let mut ok = true;
+        let data = std::fs::read(&updater).map_err(|e| e.to_string())?;
+        for p in &manifest.patches {
+            let off = {
+                let s = p.offset.trim();
+                if let Some(h) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+                    u64::from_str_radix(h, 16).unwrap_or(0) as usize
+                } else {
+                    s.parse().unwrap_or(0)
                 }
+            };
+            let orig: Vec<u8> = p
+                .original
+                .split_whitespace()
+                .filter_map(|x| u8::from_str_radix(x, 16).ok())
+                .collect();
+            if off + orig.len() > data.len() || data[off..off + orig.len()] != orig[..] {
+                ok = false;
+                break;
             }
         }
-    }
-    None
-}
-
-/// Читает имя из конфига FiveM
-fn get_fivem_username_from_config() -> Option<String> {
-    let local_appdata = dirs::data_local_dir()?;
-
-    // Вариант 1: FiveM.app/citizen/common.cfg
-    let cfg_path = local_appdata.join("FiveM").join("FiveM.app").join("citizen").join("common.cfg");
-    if let Ok(content) = fs::read_to_string(&cfg_path) {
-        for line in content.lines() {
-            if line.starts_with("set name ") {
-                let name = line.trim_start_matches("set name ").trim().trim_matches('"').to_string();
-                if !name.is_empty() {
-                    return Some(name);
-                }
-            }
-        }
-    }
-
-    // Вариант 2: Читаем из cache.xml
-    let cache_path = local_appdata.join("FiveM").join("FiveM.app").join("cache.xml");
-    if let Ok(content) = fs::read_to_string(&cache_path) {
-        // Простой XML парсинг — ищем <Name>...</Name>
-        if let Some(start) = content.find("<Name>") {
-            if let Some(end) = content.find("</Name>") {
-                let name = content[start + 6..end].trim().to_string();
-                if !name.is_empty() {
-                    return Some(name);
-                }
-            }
-        }
-    }
-
-    None
-}
-
-/// Сохраняет имя пользователя в кэш лаунчера
-#[command]
-fn save_username(name: String) -> Result<(), String> {
-    let cached_name_path = launcher_data_dir().join("cached_username.txt");
-    fs::write(&cached_name_path, &name)
-        .map_err(|e| format!("Ошибка сохранения имени: {}", e))
-}
-
-/// ─────────────────────────────────────────────
-/// 📶 ПИНГ СЕРВЕРА (#2)
-/// ─────────────────────────────────────────────
-
-/// Измеряет пинг до сервера (TCP connect time в ms)
-#[command]
-async fn get_server_ping() -> Result<serde_json::Value, String> {
-    use std::net::TcpStream;
-    use std::time::Instant;
-
-    let addr = CONFIG.server_address.clone();
-    let start = Instant::now();
-
-    match TcpStream::connect_timeout(
-        &addr.parse().map_err(|e: std::net::AddrParseError| format!("Некорректный адрес: {}", e))?,
-        std::time::Duration::from_secs(5),
-    ) {
-        Ok(_) => {
-            let ping_ms = start.elapsed().as_millis() as u64;
-            Ok(serde_json::json!({ "ping": ping_ms }))
-        }
-        Err(e) => Ok(serde_json::json!({ "ping": 0, "error": format!("{}", e) })),
-    }
-}
-
-/// ─────────────────────────────────────────────
-/// 📸 СКРИНШОТ-МЕНЕДЖЕР (#15)
-/// ─────────────────────────────────────────────
-
-/// ─────────────────────────────────────────────
-/// 🖼️ ГАЛЕРЕЯ (catbox.moe API — загрузка)
-/// ─────────────────────────────────────────────
-
-/// Загружает скриншот на catbox.moe
-#[command]
-async fn upload_to_gallery(image_path: String, author: String) -> Result<serde_json::Value, String> {
-    log_info!("upload_to_gallery: author={}, path={}", author, image_path);
-    // Читаем файл
-    let image_data = fs::read(&image_path)
-        .map_err(|e| format!("Не удалось прочитать файл: {}", e))?;
-
-    let file_name = PathBuf::from(&image_path)
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("screenshot.png")
-        .to_string();
-
-    // Определяем MIME-тип
-    let mime = if file_name.ends_with(".jpg") || file_name.ends_with(".jpeg") {
-        "image/jpeg"
-    } else if file_name.ends_with(".webp") {
-        "image/webp"
-    } else if file_name.ends_with(".gif") {
-        "image/gif"
-    } else {
-        "image/png"
+        ok
     };
 
-    // Используем reqwest::multipart для надёжной загрузки
-    let part = reqwest::multipart::Part::bytes(image_data)
-        .file_name(file_name.clone())
-        .mime_str(mime)
-        .unwrap_or_else(|_| reqwest::multipart::Part::bytes(Vec::new()).file_name("file"));
-
-    let form = reqwest::multipart::Form::new()
-        .text("reqtype", "fileupload")
-        .part("fileToUpload", part);
-
-    // Загружаем на catbox.moe
-    let client = &*HTTP_CLIENT;
-    let response = client
-        .post("https://catbox.moe/user/api.php")
-        .multipart(form)
-        .timeout(std::time::Duration::from_secs(60))
-        .send()
-        .await
-        .map_err(|e| format!("Ошибка загрузки: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Сервер вернул статус {}", response.status()));
-    }
-
-    let url = response.text().await.map_err(|e| format!("Ошибка чтения ответа: {}", e))?;
-    let url = url.trim().to_string();
-
-    if !url.starts_with("https://") {
-        return Err(format!("Некорректный ответ: {}", url));
-    }
-
-    // Генерируем ID из URL
-    let img_id = url.split('/').last().unwrap_or("unknown").to_string();
-
     Ok(serde_json::json!({
-        "id": img_id,
-        "url": url,
-        "thumb": url,
-        "author": author,
-        "timestamp": chrono::Utc::now().timestamp(),
+        "applied": applied,
+        "total": total,
+        "patched": applied == total && total > 0,
+        "reference_build": on_reference,
+        "manifest_version": manifest.version,
+        "updater_size": std::fs::metadata(&updater).map(|m| m.len()).unwrap_or(0),
     }))
 }
 
-/// ─────────────────────────────────────────────
-/// 🎬 ОНБОРДИНГ (первый запуск)
-/// ─────────────────────────────────────────────
+/// Diagnostics for the two domain-whitelist workarounds.
+#[command]
+async fn get_whitelist_status() -> Result<serde_json::Value, String> {
+    blocking("get_whitelist_status", || {
+        let state = patcher::read_registry_state();
 
-/// Путь к файлу флага онбординга
-fn onboarding_flag_path() -> PathBuf {
-    launcher_data_dir().join(".onboarding_complete")
+        let curated = CONFIG.hosts_domain.trim().to_string();
+        let curated = if curated.is_empty() {
+            // Derive the default domain we would map for this server.
+            let ip = CONFIG
+                .server_address
+                .rsplit_once(':')
+                .map(|(i, _)| i)
+                .unwrap_or(&CONFIG.server_address);
+            format!("astra-{}.gta5rp.com", ip.replace('.', "-"))
+        } else {
+            curated
+        };
+
+        let mapping = patcher::hosts_entry_for(&curated);
+
+        Ok(serde_json::json!({
+            "registry_ip": state.launch2_ip,
+            "registry_port": state.launch2_port,
+            "registry": state,
+            "hosts_path": patcher::hosts_file_path().to_string_lossy(),
+            "hosts_writable": patcher::hosts_writable(),
+            "hosts_domain": curated,
+            "hosts_domain_whitelisted": patcher::is_whitelisted_domain(&curated),
+            "hosts_mapped": mapping.is_some(),
+            "hosts_mapped_ip": mapping.map(|m| m.ip),
+            "connect_mode": CONFIG.connect_mode,
+            "rui_path": client::find_rage_dir(&CONFIG)
+                .map(|d| d.join("rui").join("index.rui").to_string_lossy().to_string()),
+        }))
+    })
+    .await
 }
 
-/// Проверяет, пройден ли онбординг (первый запуск)
+/// Save the preferred connect method (`raw` | `hosts`).
 #[command]
-fn is_onboarding_complete() -> Result<bool, String> {
-    Ok(onboarding_flag_path().exists())
+async fn set_connect_mode(mode: String, hosts_domain: String) -> Result<(), String> {
+    if mode != "raw" && mode != "hosts" {
+        return Err(format!("unsupported connect mode '{}'", mode));
+    }
+    if mode == "hosts" && !patcher::is_whitelisted_domain(&hosts_domain) {
+        return Err(format!(
+            "'{}' is not whitelisted — it must end in .gta5rp.com or .grandrp.com",
+            hosts_domain
+        ));
+    }
+    blocking("set_connect_mode", move || {
+        CONFIG.set_connect_mode(&mode, &hosts_domain);
+        log_info!("Connect mode set to '{}' (domain='{}')", mode, hosts_domain);
+        Ok(())
+    })
+    .await
 }
 
-/// Отмечает онбординг как пройденный
+/// Save which binary the launcher should hand control to.
 #[command]
-fn complete_onboarding() -> Result<(), String> {
-    fs::write(onboarding_flag_path(), chrono::Utc::now().to_rfc3339())
-        .map_err(|e| format!("Ошибка записи флага онбординга: {}", e))
+async fn set_launch_target(target: String) -> Result<serde_json::Value, String> {
+    blocking("set_launch_target", move || {
+        let t = patcher::LaunchTarget::parse(&target);
+        CONFIG.set_launch_target(t.as_str());
+        log_info!("Launch target set to '{}'", t.as_str());
+
+        // Report whether the chosen binary is actually present, so the UI can warn.
+        let available = client::find_rage_dir(&CONFIG).map(|dir| {
+            let exe = match t {
+                patcher::LaunchTarget::Updater => "updater.exe",
+                patcher::LaunchTarget::RagempV => "ragemp_v.exe",
+            };
+            dir.join(exe).exists()
+        });
+
+        Ok(serde_json::json!({
+            "target": t.as_str(),
+            "binary_present": available,
+        }))
+    })
+    .await
 }
 
-/// ─────────────────────────────────────────────
-/// 🖥️ СВЕРНУТЬ В ТРЕЙ (#9)
-/// ─────────────────────────────────────────────
-
-/// Сворачивает главное окно (вместо закрытия)
+/// Toggle the rui auto-connect injection (off by default — it has been
+/// reported to break the CEF launcher UI with "404 error: File not found").
 #[command]
-fn minimize_to_tray(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| format!("Ошибка сворачивания: {}", e))
+fn set_rui_auto_connect(enabled: bool) -> Result<serde_json::Value, String> {
+    CONFIG.set_rui_auto_connect(enabled);
+    log_info!("RUI auto-connect set to '{}'", enabled);
+    Ok(serde_json::json!({
+        "rui_auto_connect": enabled,
+        "rui_injected": client::find_rage_dir(&CONFIG).map(|d| rui::is_injected(&d)).unwrap_or(false),
+    }))
 }
 
-/// Сворачивает окно (кнопка —)
+/// Full picture of what the next launch will actually do.
+///
+/// Answers the question "which path is in effect, and is it set up correctly?"
 #[command]
-fn window_minimize(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| format!("Ошибка сворачивания: {}", e))
-}
+async fn diagnose_launch() -> Result<serde_json::Value, String> {
+    blocking("diagnose_launch", || {
+        let rage_dir = client::find_rage_dir(&CONFIG);
+        let target = patcher::LaunchTarget::parse(&CONFIG.launch_target);
+        let reg = patcher::read_registry_state();
 
-/// Закрывает окно (кнопка ✕)
-#[command]
-fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| format!("Ошибка закрытия: {}", e))
-}
+        let server_addr = CONFIG.server_address.clone();
+        let (ip, port) = match server_addr.rsplit_once(':') {
+            Some((i, p)) => (i.to_string(), p.to_string()),
+            None => (server_addr.clone(), "22005".to_string()),
+        };
 
-/// ─────────────────────────────────────────────
-/// 🎮 DISCORD RICH PRESENCE (#13)
-/// ─────────────────────────────────────────────
+        // Which binaries exist on disk?
+        let (updater_present, client_present, rage_dir_str) = match &rage_dir {
+            Some(d) => (
+                d.join("updater.exe").exists(),
+                d.join("ragemp_v.exe").exists(),
+                d.to_string_lossy().to_string(),
+            ),
+            None => (false, false, String::new()),
+        };
 
-/// Discord Application ID (замените на свой при необходимости)
-const DISCORD_APP_ID: &str = "1511825412911792241";
+        let target_binary_present = match target {
+            patcher::LaunchTarget::Updater => updater_present,
+            patcher::LaunchTarget::RagempV => client_present,
+        };
 
-/// Подключает Discord RPC и устанавливает статус
-#[command]
-fn set_discord_rpc(state: String, details: String, large_text: String) -> Result<bool, String> {
-    let mut rpc = DISCORD_RPC.lock().map_err(|e| format!("Ошибка блокировки: {}", e))?;
+        // Is the registry in the state the chosen target needs?
+        let registry_ok = reg.has_launch_family() && reg.has_launch2_family();
+        let registry_matches_server = reg.launch_ip.as_deref() == Some(ip.as_str())
+            && reg.launch_port.as_deref() == Some(port.as_str());
 
-    if rpc.is_none() {
-        // Подключаемся к Discord IPC
-        let mut client = DiscordIpcClient::new(DISCORD_APP_ID)
-            .map_err(|e| format!("Ошибка создания Discord IPC: {}", e))?;
+        // A raw IP is filtered by ragemp_v.exe's whitelist unless the rui
+        // auto-connect bootstrap is doing the connecting instead.
+        let rui_injected = rage_dir.as_ref().map(|d| rui::is_injected(d)).unwrap_or(false);
+        let rui_bypass_enabled = CONFIG.connect_mode == "raw" && CONFIG.rui_auto_connect;
+        let raw_ip_needs_bypass = CONFIG.connect_mode == "raw";
+        let raw_ip_covered = rui_injected;
+        // Before the first ASTRA launch, registry values and the RUI bootstrap
+        // are expected to be absent: launch_patched writes/injects them as part
+        // of the Play action. Distinguish that pending state from a failed
+        // post-launch setup so diagnostics do not raise a false alarm.
+        let rui_pending = rui_bypass_enabled && !rui_injected && !registry_matches_server;
 
-        match client.connect() {
-            Ok(_) => {
-                *rpc = Some(client);
+        let mut notes: Vec<String> = Vec::new();
+        if rage_dir.is_none() {
+            notes.push("RAGE:MP не найден — укажите путь в настройках".to_string());
+        }
+        // RAGE:MP's default game port is 22005. 30120 is a non-standard port of another client, and
+        // is almost always a leftover from the legacy config schema — and because
+        // this value is written straight into `launch.port`, a wrong port means the
+        // client connects to nothing.
+        if port == "30120" {
+            notes.push(
+                "Порт 30120 — нестандартный порт. Для RAGE:MP обычно 22005, иначе игра подключится не туда"
+                    .to_string(),
+            );
+        }
+        if !target_binary_present {
+            notes.push(format!(
+                "Бинарник для выбранного пути ({}) не найден",
+                match target {
+                    patcher::LaunchTarget::Updater => "updater.exe",
+                    patcher::LaunchTarget::RagempV => "ragemp_v.exe",
+                }
+            ));
+        }
+        if raw_ip_needs_bypass && !raw_ip_covered {
+            if !CONFIG.rui_auto_connect {
+                notes.push(
+                    "Режим raw, но автоподключение отключено (патч rui убран из-за ошибки 404) — прямой IP может быть отброшен белым списком ragemp_v.exe. Включите rui_auto_connect в конфиге или переключитесь на режим hosts"
+                        .to_string(),
+                );
+            } else if rui_pending {
+                notes.push(
+                    "До первого запуска через ASTRA автоподключение ещё не внедрено; оно будет добавлено при нажатии «Играть»".to_string(),
+                );
+            } else {
+                notes.push(
+                    "Прямой IP без внедрённого автоподключения будет отброшен белым списком".to_string(),
+                );
             }
-            Err(e) => {
-                let _ = e;
-                return Ok(false);
+        }
+        if !reg.has_launch_family() && reg.has_launch2_family() {
+            notes.push(
+                "В реестре только launch2.* — ragemp_v.exe читает launch.*, возможно потребуется повторный запуск"
+                    .to_string(),
+            );
+        }
+        if !reg.has_launch2_family() && reg.has_launch_family() {
+            notes.push("В реестре только launch.* — старые лаунчеры читают launch2.*".to_string());
+        }
+
+        Ok(serde_json::json!({
+            "rage_dir": rage_dir_str,
+            "target": target.as_str(),
+            "target_binary_present": target_binary_present,
+            "updater_present": updater_present,
+            "client_present": client_present,
+            "server_ip": ip,
+            "server_port": port,
+            "connect_mode": CONFIG.connect_mode,
+            "rui_auto_connect": CONFIG.rui_auto_connect,
+            "registry": reg,
+            "registry_ok": registry_ok,
+            "registry_matches_server": registry_matches_server,
+            "rui_injected": rui_injected,
+            "rui_pending": rui_pending,
+            "raw_ip_covered": raw_ip_covered,
+            "notes": notes,
+        }))
+    })
+    .await
+}
+
+/// Clear the direct-connect registry values (diagnostics / troubleshooting).
+#[command]
+async fn clear_launch_registry() -> Result<(), String> {
+    blocking("clear_launch_registry", || patcher::clear_registry()).await
+}
+
+/// Validate and save the server address (`ip:port` or bare host).
+///
+/// This value is written into the registry as `launch.ip` / `launch.port`, so a
+/// typo here silently breaks direct connect — hence the validation.
+#[command]
+async fn set_server_address(address: String) -> Result<serde_json::Value, String> {
+    let trimmed = address.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("Адрес не может быть пустым".to_string());
+    }
+
+    blocking("set_server_address", move || {
+        let (host, port) = match trimmed.rsplit_once(':') {
+            Some((h, p)) => (h.trim(), p.trim()),
+            None => (trimmed.as_str(), "22005"),
+        };
+
+        if host.is_empty() {
+            return Err("Не указан адрес сервера".to_string());
+        }
+        // Hostname or IPv4 — reject anything with spaces or scheme prefixes.
+        if host.contains(' ') || host.contains('/') {
+            return Err(format!("Некорректный адрес: '{}'", host));
+        }
+        if host.chars().all(|c| c.is_ascii_digit() || c == '.') {
+            let octets: Vec<&str> = host.split('.').collect();
+            if octets.len() != 4 || octets.iter().any(|o| o.parse::<u8>().is_err()) {
+                return Err(format!("Некорректный IP-адрес: '{}'", host));
+            }
+        }
+
+        let port_num: u16 = port
+            .parse()
+            .map_err(|_| format!("Некорректный порт: '{}'", port))?;
+        if port_num == 0 {
+            return Err("Порт не может быть нулевым".to_string());
+        }
+
+        let mut cfg = (*CONFIG).clone();
+        cfg.server_address = format!("{}:{}", host, port_num);
+        cfg.save();
+
+        log_info!("Server address set to {}", cfg.server_address);
+
+        Ok(serde_json::json!({
+            "server_address": cfg.server_address,
+            "host": host,
+            "port": port_num,
+            "rage_port_warning": port_num == 30120,
+        }))
+    })
+    .await
+}
+
+/// Relaunch *this* executable elevated (UAC) with the given CLI arguments.
+///
+/// We reuse the same binary instead of shipping a separate helper, so there is
+/// no sidecar to package. The elevated instance short-circuits in
+/// `handle_cli_mode()` before Tauri ever initialises.
+#[cfg(target_os = "windows")]
+fn elevate_self(args: &[&str]) -> Result<(), String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
+
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("cannot resolve own path: {}", e))?;
+
+    let params = args.join(" ");
+    let to_wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+
+    let verb = to_wide("runas");
+    let file = to_wide(&exe.to_string_lossy());
+    let param = to_wide(&params);
+
+    unsafe {
+        // ShellExecuteW returns as soon as the process has *started*; the
+        // caller polls the hosts file to learn the real outcome.
+        let result = ShellExecuteW(
+            None,
+            PCWSTR(verb.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR(param.as_ptr()),
+            PCWSTR::null(),
+            SW_HIDE,
+        );
+
+        // Values <= 32 indicate failure.
+        let code = result.0 as isize;
+        if code <= 32 {
+            let msg = match code {
+                5 => "administrator rights were refused (UAC prompt cancelled)".to_string(),
+                _ => format!("ShellExecuteW failed with code {}", code),
+            };
+            log_error!("elevation failed: {}", msg);
+            return Err(msg);
+        }
+    }
+
+    log_info!("relaunched elevated: {}", params);
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn elevate_self(_args: &[&str]) -> Result<(), String> {
+    Err("hosts file editing is only supported on Windows".to_string())
+}
+
+/// Return the server IP for the configured address.
+fn server_ip() -> String {
+    CONFIG
+        .server_address
+        .rsplit_once(':')
+        .map(|(ip, _)| ip.to_string())
+        .unwrap_or_else(|| CONFIG.server_address.clone())
+}
+
+/// Apply the hosts-based whitelist bypass (requires administrator rights).
+#[command]
+async fn apply_whitelist_bypass() -> Result<serde_json::Value, String> {
+    let ip = server_ip();
+    let domain = {
+        let d = CONFIG.hosts_domain.trim().to_string();
+        if d.is_empty() {
+            format!("astra-{}.gta5rp.com", ip.replace('.', "-"))
+        } else {
+            d
+        }
+    };
+
+    if !patcher::is_whitelisted_domain(&domain) {
+        return Err(format!(
+            "'{}' is not whitelisted — it must end in .gta5rp.com or .grandrp.com",
+            domain
+        ));
+    }
+
+    // Try a direct write first — if the launcher already has the rights (or
+    // the user runs it as administrator) no UAC prompt is needed.
+    let entries = vec![patcher::HostsEntry {
+        ip: ip.clone(),
+        domain: domain.clone(),
+    }];
+
+    let direct = patcher::apply_hosts_mapping(&entries);
+    if let Err(e) = &direct {
+        log_info!("direct hosts write failed ({}), requesting elevation", e);
+        elevate_self(&["--hosts-apply", &ip, &domain])?;
+    }
+
+    // Poll — either the write landed instantly, or the elevated instance is
+    // still starting up behind a UAC prompt.
+    let mut mapped = false;
+    for _ in 0..40 {
+        if let Some(e) = patcher::hosts_entry_for(&domain) {
+            if e.ip == ip {
+                mapped = true;
+                break;
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    if !mapped {
+        return Err(
+            "hosts mapping was not written — the UAC prompt was likely cancelled".to_string(),
+        );
+    }
+
+    CONFIG.set_connect_mode("hosts", &domain);
+
+    log_info!("Whitelist bypass active: {} → {}", domain, ip);
+    Ok(serde_json::json!({
+        "success": true,
+        "domain": domain,
+        "ip": ip,
+        "connect_mode": "hosts",
+    }))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tauri Commands: RUI archive editor
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Path of the persisted RUI editor config.
+fn rui_config_path() -> std::path::PathBuf {
+    paths::launcher_data_dir().join("rui_config.json")
+}
+
+/// Report the state of the installed `rui\index.rui`.
+///
+/// Uses [`rui::inspect`], which reads only the header tables — a full
+/// [`rui::Archive::parse`] would copy all 265 files (15 MB) just to render a
+/// status line.
+#[command]
+async fn get_rui_status() -> Result<serde_json::Value, String> {
+    blocking("get_rui_status", || {
+        let Some(rage_dir) = client::find_rage_dir(&CONFIG) else {
+            return Ok(serde_json::json!({ "available": false, "reason": "CLIENT_NOT_FOUND" }));
+        };
+        let path = rui::rui_path(&rage_dir);
+
+        if !path.exists() {
+            return Ok(serde_json::json!({
+                "available": false,
+                "reason": "RUI_NOT_FOUND",
+                "path": path.to_string_lossy(),
+            }));
+        }
+
+        let data =
+            std::fs::read(&path).map_err(|e| format!("failed to read index.rui: {}", e))?;
+        let inspected = rui::inspect(&data);
+
+        let (entries, contiguous, app_js, index_html) = match &inspected {
+            Ok(i) => (
+                i.entries,
+                i.contiguous,
+                i.app_js_index,
+                i.index_html_index,
+            ),
+            Err(_) => (0, false, None, None),
+        };
+
+        Ok(serde_json::json!({
+            "available": true,
+            "path": path.to_string_lossy(),
+            "size": data.len(),
+            "parsable": inspected.is_ok(),
+            "parse_error": inspected.as_ref().err(),
+            "entries": entries,
+            "contiguous": contiguous,
+            "app_js_index": app_js,
+            "index_html_index": index_html,
+            "injected": rui::is_injected(&rage_dir),
+            "backup_exists": rui::backup_path(&path).exists(),
+            "backup_path": rui::backup_path(&path).to_string_lossy(),
+        }))
+    })
+    .await
+}
+
+/// Load the saved RUI editor config (returns defaults when absent).
+#[command]
+async fn get_rui_config() -> Result<serde_json::Value, String> {
+    blocking("get_rui_config", || {
+        let path = rui_config_path();
+        if !path.exists() {
+            return Ok(serde_json::json!({
+                "title": null,
+                "auto_connect": { "enabled": false, "ip": "", "port": 22005, "name": "AutoConnect", "delay_ms": 2000 },
+                "server_list": { "override": false, "servers": [] },
+                "colors": {},
+                "texts": [],
+                "images": {},
+            }));
+        }
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|e| format!("failed to read rui_config.json: {}", e))?;
+        serde_json::from_str(&raw).map_err(|e| format!("invalid rui_config.json: {}", e))
+    })
+    .await
+}
+
+/// Persist the RUI editor config.
+#[command]
+async fn save_rui_config(config: serde_json::Value) -> Result<(), String> {
+    blocking("save_rui_config", move || {
+        // Validate by round-tripping through the strongly-typed struct.
+        let _: rui::RuiConfig = serde_json::from_value(config.clone())
+            .map_err(|e| format!("invalid RUI config: {}", e))?;
+
+        let path = rui_config_path();
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&config).unwrap_or_default(),
+        )
+        .map_err(|e| format!("failed to write rui_config.json: {}", e))?;
+        log_info!("RUI config saved to {:?}", path);
+        Ok(())
+    })
+    .await
+}
+
+/// Apply an RUI editor config to the installed `index.rui`.
+///
+/// Reads, rewrites and re-verifies a 15 MB archive — must never run on the
+/// main thread.
+#[command]
+async fn apply_rui_config(config: serde_json::Value) -> Result<serde_json::Value, String> {
+    blocking("apply_rui_config", move || {
+        let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+        let parsed: rui::RuiConfig = serde_json::from_value(config)
+            .map_err(|e| format!("invalid RUI config: {}", e))?;
+
+        let report = rui::apply_config(&rage_dir, &parsed)?;
+        serde_json::to_value(report).map_err(|e| format!("failed to encode report: {}", e))
+    })
+    .await
+}
+
+/// Preview what an RUI config would change, without writing anything.
+///
+/// Parses the full 15 MB archive — off the main thread.
+#[command]
+async fn preview_rui_config(config: serde_json::Value) -> Result<serde_json::Value, String> {
+    blocking("preview_rui_config", move || {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+    let path = rui::rui_path(&rage_dir);
+    if !path.exists() {
+        return Err("index.rui not found".to_string());
+    }
+
+    let parsed: rui::RuiConfig = serde_json::from_value(config)
+        .map_err(|e| format!("invalid RUI config: {}", e))?;
+
+    let data = std::fs::read(&path).map_err(|e| format!("failed to read index.rui: {}", e))?;
+    let archive = rui::Archive::parse(&data)?;
+
+    // Mirror apply_config's logic but never touch the file.
+    let mut changes: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+
+    if let Some(i) = archive.app_js_index() {
+        let before = archive.blobs[i].clone();
+        let mut blob = before.clone();
+
+        if parsed.auto_connect.enabled {
+            match rui::apply_auto_connect(&blob, &parsed.auto_connect) {
+                Ok(next) => {
+                    blob = next;
+                    changes.push(format!(
+                        "auto-connect -> {}:{} ({}ms)",
+                        parsed.auto_connect.ip, parsed.auto_connect.port, parsed.auto_connect.delay_ms
+                    ));
+                }
+                Err(e) => warnings.push(format!("auto-connect: {}", e)),
+            }
+        }
+        if parsed.server_list.override_list {
+            match rui::apply_server_list(&blob, &parsed.server_list) {
+                Ok(next) => {
+                    blob = next;
+                    changes.push(format!("server list override: {} entr(ies)", parsed.server_list.servers.len()));
+                }
+                Err(e) => warnings.push(format!("server list: {}", e)),
+            }
+        }
+        if !parsed.colors.is_empty() {
+            let (next, n) = rui::apply_colors(&blob, &parsed.colors);
+            blob = next;
+            if n > 0 {
+                changes.push(format!("{} colour replacement(s)", n));
+            }
+        }
+        if !parsed.texts.is_empty() {
+            let (next, n) = rui::apply_texts(&blob, &parsed.texts);
+            blob = next;
+            if n > 0 {
+                changes.push(format!("{} text replacement(s)", n));
+            }
+        }
+        if blob == before {
+            warnings.push("app.js would be unchanged".to_string());
+        }
+    } else {
+        warnings.push("app.js not found in archive".to_string());
+    }
+
+    if let Some(i) = archive.index_html_index() {
+        if let Some(title) = &parsed.title {
+            let (_, applied) = rui::apply_title(&archive.blobs[i], title);
+            if applied {
+                changes.push(format!("title -> {}", title));
             }
         }
     }
 
-    if let Some(ref mut client) = *rpc {
-        let activity = discord_rich_presence::activity::Activity::new()
-            .state(&state)
-            .details(&details)
-            .assets(
-                discord_rich_presence::activity::Assets::new()
-                    .large_image("astra-logo")
-                    .large_text(&large_text)
-            )
-            .timestamps(
-                discord_rich_presence::activity::Timestamps::new()
-                    .start(chrono::Utc::now().timestamp())
-            );
-
-        client.set_activity(activity)
-            .map_err(|e| format!("Ошибка установки активности: {}", e))?;
-        Ok(true)
-    } else {
-        Ok(false)
+    for key in parsed.images.keys() {
+        match key.parse::<usize>() {
+            Ok(idx) if idx < archive.blobs.len() => {
+                changes.push(format!("image idx{} replaced", idx));
+            }
+            Ok(idx) => warnings.push(format!("image index {} out of range", idx)),
+            Err(_) => warnings.push(format!("image key '{}' is not an index", key)),
+        }
     }
+
+    Ok(serde_json::json!({
+        "changes": changes,
+        "warnings": warnings,
+    }))
+    })
+    .await
 }
 
-/// Отключает Discord RPC
+/// Restore `rui\index.rui` from the backup made by the archive editor.
 #[command]
-fn clear_discord_rpc() -> Result<(), String> {
-    let mut rpc = DISCORD_RPC.lock().map_err(|e| format!("Ошибка блокировки: {}", e))?;
-    if let Some(ref mut client) = *rpc {
-        client.close().ok();
-    }
-    *rpc = None;
-    Ok(())
+async fn restore_rui() -> Result<serde_json::Value, String> {
+    blocking("restore_rui", || {
+        let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+        let path = rui::rui_path(&rage_dir);
+        let restored = rui::restore_backup(&path)?;
+        Ok(serde_json::json!({ "success": true, "restored": restored }))
+    })
+    .await
 }
 
-/// ─────────────────────────────────────────────
-/// 🏁 ТОЧКА ВХОДА
-/// ─────────────────────────────────────────────
+/// Remove our hosts entries (requires administrator rights).
+#[command]
+async fn remove_whitelist_bypass() -> Result<serde_json::Value, String> {
+    if let Err(e) = patcher::apply_hosts_mapping(&[]) {
+        log_info!("direct hosts clean failed ({}), requesting elevation", e);
+        elevate_self(&["--hosts-clean"])?;
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+    }
+
+    // Spin the config back to the raw-IP method.
+    let domain = CONFIG.hosts_domain.clone();
+    if !domain.is_empty() && patcher::hosts_entry_for(&domain).is_none() {
+        CONFIG.set_connect_mode("raw", &domain);
+    }
+
+    Ok(serde_json::json!({ "success": true, "connect_mode": "raw" }))
+}
+
+#[command]
+async fn download_ragemp(window: tauri::Window) -> Result<serde_json::Value, String> {
+    let rage_dir = client::find_rage_dir(&CONFIG)
+        .unwrap_or_else(|| {
+            // Default: %LocalAppData%\RageMP
+            let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+            std::path::PathBuf::from(local_appdata).join("RageMP")
+        });
+
+    let result = patcher::download_ragemp(
+        &CONFIG.ragemp_download_url,
+        &rage_dir,
+        &window,
+    ).await?;
+
+    // Update config with the rage dir
+    let mut config = (*CONFIG).clone();
+    config.rage_dir = rage_dir.to_string_lossy().to_string();
+    config.save();
+
+    Ok(serde_json::json!({
+        "success": true,
+        "path": result,
+        "rage_dir": rage_dir.to_string_lossy(),
+    }))
+}
+
+#[command]
+async fn launch_patched() -> Result<serde_json::Value, String> {
+    let rage_dir = client::find_rage_dir(&CONFIG).ok_or("CLIENT_NOT_FOUND")?;
+
+    // Check updater.exe exists
+    let updater = rage_dir.join("updater.exe");
+    if !updater.exists() {
+        return Err("updater.exe not found in RAGE:MP directory".to_string());
+    }
+
+    // updater.exe is no longer patched: the binary patches were tied to one
+    // specific build, broke the client's install-integrity check ("installation
+    // is incomplete") and are not needed for auto-connect — the rui injection
+    // does that job. Passing an empty table keeps the file pristine.
+
+    // Parse server address (ip:port)
+    let server_addr = &CONFIG.server_address;
+    let (ip, port) = if let Some(colon_pos) = server_addr.rfind(':') {
+        (
+            server_addr[..colon_pos].to_string(),
+            server_addr[colon_pos + 1..].to_string(),
+        )
+    } else {
+        (server_addr.clone(), "22005".to_string())
+    };
+
+    let opts = LaunchOptions {
+        connect_mode: if CONFIG.connect_mode.is_empty() {
+            "raw".to_string()
+        } else {
+            CONFIG.connect_mode.clone()
+        },
+        hosts_domain: CONFIG.hosts_domain.clone(),
+        target: patcher::LaunchTarget::parse(&CONFIG.launch_target),
+        rui_auto_connect: CONFIG.rui_auto_connect,
+        ragemp_v_patches: CONFIG.ragemp_v_patches.clone(),
+    };
+
+    // Launch: resolve target → registry → patch → (rui) → spawn
+    let result = patcher::launch_ragemp(&rage_dir, &ip, &port, &[], &opts)?;
+
+    let pid = result.get("pid").and_then(|v| v.as_u64()).unwrap_or(0);
+    log_info!("RAGE:MP launched with PID={}", pid);
+    Ok(result)
+}
+
+/// ── Tauri Commands: Server ──
+
+#[command]
+async fn get_server_status() -> Result<serde_json::Value, String> {
+    server::get_server_status(&CONFIG).await
+}
+
+#[command]
+async fn get_server_ping() -> Result<serde_json::Value, String> {
+    server::get_server_ping(&CONFIG).await
+}
+
+/// ── Tauri Commands: Discord ──
+
+#[command]
+async fn set_discord_rpc(state: String, details: String, large_text: String) -> Result<bool, String> {
+    // Opening the Discord IPC pipe blocks until it connects or times out.
+    blocking("set_discord_rpc", move || {
+        discord::set_discord_rpc(&state, &details, &large_text)
+    })
+    .await
+}
+
+/// ── Tauri Commands: Username ──
+
+#[command]
+async fn get_username() -> Result<String, String> {
+    blocking("get_username", username::get_username).await
+}
+
+#[command]
+async fn save_username(name: String) -> Result<(), String> {
+    blocking("save_username", move || username::save_username(&name)).await
+}
+
+/// ── Tauri Commands: Config ──
+
+#[command]
+async fn get_launcher_config() -> Result<serde_json::Value, String> {
+    blocking("get_launcher_config", || {
+        Ok(serde_json::json!({
+            "server_address": CONFIG.server_address,
+            "client_manifest_url": CONFIG.client_manifest_url,
+            "cache_info_url": CONFIG.cache_info_url,
+            "patches_url": CONFIG.patches_url,
+            "file_download_base_url": CONFIG.file_download_base_url,
+            "ragemp_download_url": CONFIG.ragemp_download_url,
+            "rage_dir": CONFIG.rage_dir,
+            "gta5_path": CONFIG.gta5_path,
+            "connect_mode": CONFIG.connect_mode,
+            "hosts_domain": CONFIG.hosts_domain,
+            "launch_target": CONFIG.launch_target,
+        }))
+    })
+    .await
+}
+
+/// ── Tauri Commands: Onboarding ──
+
+#[command]
+async fn is_onboarding_complete() -> Result<bool, String> {
+    blocking("is_onboarding_complete", || {
+        Ok(paths::onboarding_flag_path().exists())
+    })
+    .await
+}
+
+#[command]
+async fn complete_onboarding() -> Result<(), String> {
+    blocking("complete_onboarding", || {
+        fs::write(
+            paths::onboarding_flag_path(),
+            chrono::Utc::now().to_rfc3339(),
+        )
+        .map_err(|e| format!("Failed to write onboarding flag: {}", e))
+    })
+    .await
+}
+
+/// ── Tauri Commands: Window ──
+
+#[command]
+fn show_main_window(window: tauri::Window) -> Result<(), String> {
+    window::show_main_window(&window)
+}
+
+#[command]
+async fn create_embedded_webview(url: String, window: tauri::Window) -> Result<(), String> {
+    window::create_embedded_webview(url, &window).await
+}
+
+#[command]
+fn close_embedded_webview(window: tauri::Window) -> Result<(), String> {
+    window::close_embedded_webview(&window)
+}
+
+#[command]
+fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window::window_minimize(&window)
+}
+
+#[command]
+fn window_close(window: tauri::Window) -> Result<(), String> {
+    window::window_close(&window)
+}
+
+/// ── Entry Point ──
+
+/// Handle the elevated-helper invocations.
+///
+/// When the launcher needs to write the hosts file it relaunches *itself*
+/// with `--hosts-apply` / `--hosts-clean`. That second instance must not boot
+/// the UI — it performs the write and exits with a status code:
+///   0 = success, 2/3 = bad arguments, 5 = write denied.
+fn handle_cli_mode() -> Option<i32> {
+    let args: Vec<String> = std::env::args().collect();
+
+    match args.get(1).map(|s| s.as_str()) {
+        Some("--hosts-apply") => {
+            let ip = args.get(2).cloned().unwrap_or_default();
+            let domain = args.get(3).cloned().unwrap_or_default();
+            if ip.trim().is_empty() {
+                return Some(2);
+            }
+            if domain.trim().is_empty() {
+                return Some(3);
+            }
+            let entries = vec![patcher::HostsEntry { ip, domain }];
+            Some(match patcher::apply_hosts_mapping(&entries) {
+                Ok(()) => 0,
+                Err(e) => {
+                    log_error!("elevated hosts write failed: {}", e);
+                    5
+                }
+            })
+        }
+        Some("--hosts-clean") => Some(match patcher::apply_hosts_mapping(&[]) {
+            Ok(()) => 0,
+            Err(e) => {
+                log_error!("elevated hosts clean failed: {}", e);
+                5
+            }
+        }),
+        _ => None,
+    }
+}
 
 fn main() {
-    log_info!("ASTRA Launcher v{} запущен", env!("CARGO_PKG_VERSION"));
+    // Elevated helper mode — never initialise Tauri here.
+    if let Some(code) = handle_cli_mode() {
+        std::process::exit(code);
+    }
+
+    log_info!("ASTRA Launcher v{} (RAGE:MP) started", env!("CARGO_PKG_VERSION"));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1437,9 +1153,9 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            // #9 — Системный трей
-            let show_item = MenuItemBuilder::with_id("show", "Показать лаунчер").build(app)?;
-            let quit_item = MenuItemBuilder::with_id("quit", "Выход").build(app)?;
+            // System tray
+            let show_item = MenuItemBuilder::with_id("show", "Show launcher").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let menu = MenuBuilder::new(app)
                 .item(&show_item)
                 .separator()
@@ -1450,22 +1166,25 @@ fn main() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("ASTRA Launcher")
                 .menu(&menu)
-                .on_menu_event(|app, event| {
-                    match event.id.as_ref() {
-                        "show" => {
-                            if let Some(w) = app.get_webview_window("main") {
-                                let _ = w.show();
-                                let _ = w.set_focus();
-                            }
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
                         }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
                     }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
@@ -1478,46 +1197,60 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // Splash / установка
-            diagnose_fivem_install,
-            check_fivem_installed,
-            get_fivem_path,
-            set_fivem_path,
-            auto_find_fivem,
-            download_fivem,
-            add_defender_exclusion,
-            launch_fivem_installer,
-            show_main_window,
-            // Лаунчер
-            launch_game,
+            // Client
+            check_client_installed,
+            get_rage_dir,
+            set_rage_dir,
+            auto_find_rage_dir,
+            // Manifest + Download
+            check_client_files,
+            download_client_files,
+            // Server Cache
+            check_server_cache,
+            download_server_cache,
+            // Patches + Launch
+            get_patch_manifest,
+            check_patch_status,
+            download_ragemp,
+            launch_patched,
+            // Domain whitelist bypass
+            get_whitelist_status,
+            set_connect_mode,
+            apply_whitelist_bypass,
+            remove_whitelist_bypass,
+            // Launch path selection + diagnostics
+            set_launch_target,
+            set_rui_auto_connect,
+            diagnose_launch,
+            clear_launch_registry,
+            set_server_address,
+            // RUI archive editor
+            get_rui_status,
+            get_rui_config,
+            save_rui_config,
+            apply_rui_config,
+            preview_rui_config,
+            restore_rui,
+            // Server
             get_server_status,
-            // Встроенный браузер
-            create_embedded_webview,
-            close_embedded_webview,
-            // Конфигурация
-            get_launcher_config,
-            // Имя пользователя
+            get_server_ping,
+            // Discord
+            set_discord_rpc,
+            // Username
             get_username,
             save_username,
-            // Пинг сервера
-            get_server_ping,
-            // Предзагрузка кеша сервера
-            check_precache_needed,
-            precache_server_files,
-            // Галерея (загрузка на catbox.moe)
-            upload_to_gallery,
-            // Трей
-            minimize_to_tray,
-            // Управление окном
-            window_minimize,
-            window_close,
-            // Discord Rich Presence
-            set_discord_rpc,
-            clear_discord_rpc,
-            // Онбординг (первый запуск)
+            // Config
+            get_launcher_config,
+            // Onboarding
             is_onboarding_complete,
             complete_onboarding,
+            // Window
+            show_main_window,
+            create_embedded_webview,
+            close_embedded_webview,
+            window_minimize,
+            window_close,
         ])
         .run(tauri::generate_context!())
-        .expect("Ошибка при запуске Tauri");
+        .expect("Error running Tauri");
 }

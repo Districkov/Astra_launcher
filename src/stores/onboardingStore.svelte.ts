@@ -1,23 +1,22 @@
 /**
- * onboardingStore.svelte.ts — Онбординг (первый запуск)
+ * onboardingStore.svelte.ts — Onboarding (first launch)
  * Svelte 5 runes-based store
  */
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { handleError } from "../errorHandling";
 
-// Lazy getters to avoid circular dependency at module load
 function getServerStore() {
   return import("./serverStore.svelte").then(m => m.getServerStore());
 }
-function getFivemStore() {
-  return import("./fivemStore.svelte").then(m => m.getFivemStore());
+function getGameStore() {
+  return import("./gameStore.svelte").then(m => m.getGameStore());
 }
 
 let onboardingActive = $state(false);
 let onboardingStep = $state(1);
-let onboardingFivemSearching = $state(false);
-let onboardingFivemResult = $state<string | null>(null);
+let onboardingRageSearching = $state(false);
+let onboardingRageResult = $state<string | null>(null);
 let onboardingNickname = $state("");
 let onboardingNicknameSaving = $state(false);
 
@@ -35,25 +34,25 @@ async function checkOnboarding() {
 
 async function onboardingNext(playClickSound: () => void, username: { value: string }, setUsername: (v: string) => void) {
   playClickSound();
-  const fivem = await getFivemStore();
+  const game = await getGameStore();
 
   if (onboardingStep === 1) {
     onboardingStep = 2;
-    onboardingFivemSearching = true;
-    onboardingFivemResult = null;
+    onboardingRageSearching = true;
+    onboardingRageResult = null;
     try {
-      const path = await invoke<string | null>("auto_find_fivem");
+      const path = await invoke<string | null>("auto_find_rage_dir");
       if (path) {
-        await fivem.loadFivemPath();
-        onboardingFivemResult = 'found';
+        await game.loadRageDir();
+        onboardingRageResult = 'found';
       } else {
-        onboardingFivemResult = 'not_found';
+        onboardingRageResult = 'not_found';
       }
     } catch (e) {
       handleError(e, "onboardingNext.autoFind");
-      onboardingFivemResult = 'not_found';
+      onboardingRageResult = 'not_found';
     }
-    onboardingFivemSearching = false;
+    onboardingRageSearching = false;
   } else if (onboardingStep === 2) {
     onboardingStep = 3;
   } else if (onboardingStep === 3) {
@@ -77,47 +76,28 @@ async function onboardingNext(playClickSound: () => void, username: { value: str
   }
 }
 
-async function onboardingSelectFivem(playClickSound: () => void) {
+async function onboardingSelectRageDir(playClickSound: () => void) {
   playClickSound();
   try {
+    // Select the install directory, not an arbitrary .exe inside it.
     const selected = await open({
+      directory: true,
       multiple: false,
-      filters: [{ name: "FiveM", extensions: ["exe"] }],
+      title: "Выберите папку RAGE:MP",
     });
     if (selected) {
-      await invoke("set_fivem_path", { path: selected });
-      const fivem = await getFivemStore();
-      await fivem.loadFivemPath();
-      onboardingFivemResult = 'found';
+      const result = await invoke<{ path: string; valid: boolean }>("set_rage_dir", {
+        path: selected,
+      });
+      const game = await getGameStore();
+      await game.loadRageDir();
+      onboardingRageResult = result.valid ? "found" : "not_found";
     }
   } catch (e) {
-    handleError(e, "onboardingSelectFivem");
+    handleError(e, "onboardingSelectRageDir");
   }
 }
 
-async function onboardingDownloadFivem(playClickSound: () => void) {
-  playClickSound();
-  const fivem = await getFivemStore();
-  
-  // Запускаем скачивание (не ждём завершения — downloadAndInstall работает с poll)
-  fivem.downloadAndInstall(playClickSound);
-  
-  // Сами следим за fivem.found — когда poll внутри downloadAndInstall найдёт FiveM,
-  // обновляем onboardingFivemResult автоматически
-  const checkInterval = setInterval(() => {
-    if (fivem.found) {
-      onboardingFivemResult = 'found';
-      clearInterval(checkInterval);
-    }
-    // Если скачивание завершилось (таймаут/ошибка) и FiveM не найден
-    if (!fivem.downloading && !fivem.found) {
-      onboardingFivemResult = 'not_found';
-      clearInterval(checkInterval);
-    }
-  }, 2000);
-}
-
-/** Go back one step, or close if on step 1 */
 function onboardingBack() {
   if (onboardingStep > 1) {
     onboardingStep--;
@@ -131,16 +111,15 @@ export function getOnboardingStore() {
     get active() { return onboardingActive; },
     get step() { return onboardingStep; },
     set step(v: number) { onboardingStep = v; },
-    get fivemSearching() { return onboardingFivemSearching; },
-    get fivemResult() { return onboardingFivemResult; },
-    set fivemResult(v: string | null) { onboardingFivemResult = v; },
+    get rageSearching() { return onboardingRageSearching; },
+    get rageResult() { return onboardingRageResult; },
+    set rageResult(v: string | null) { onboardingRageResult = v; },
     get nickname() { return onboardingNickname; },
     set nickname(v: string) { onboardingNickname = v; },
     get nicknameSaving() { return onboardingNicknameSaving; },
     checkOnboarding,
     onboardingNext,
-    onboardingSelectFivem,
-    onboardingDownloadFivem,
+    onboardingSelectRageDir,
     onboardingBack,
   };
 }

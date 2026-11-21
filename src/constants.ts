@@ -3,13 +3,6 @@
  * Centralized configuration for easy maintenance
  */
 
-// Server Configuration (used by Rust backend, kept for reference)
-// export const SERVER_ADDRESS = "185.176.94.21:30120";
-
-// Update Configuration
-export const UPDATE_CHECK_INTERVAL = 3600000; // 1 hour
-export const FIVEM_DOWNLOAD_URL = "https://runtime.fivem.net/client/FiveM.exe";
-
 // Font Configuration
 export const FONTS = {
   primary: "'Proxima Nova', sans-serif",
@@ -20,10 +13,10 @@ export const FONTS = {
 
 // Color Configuration
 export const COLORS = {
-  primary: "#f64a46", // Red accent
-  background: "#0d0d0d", // Main bg
-  sidebarBg: "#1b1b1b", // Sidebar bg
-  success: "#15ff00", // Green success
+  primary: "#f64a46",
+  background: "#0d0d0d",
+  sidebarBg: "#1b1b1b",
+  success: "#15ff00",
   textPrimary: "#ffffff",
   textSecondary: "#ffffff/50",
   textTertiary: "#ffffff/30",
@@ -31,37 +24,34 @@ export const COLORS = {
 
 // Size Configuration
 export const SIZES = {
-  sidebarWidth: 157, // px
+  sidebarWidth: 157,
   mainWindow: { width: 960, height: 600 },
   splashWindow: { width: 300, height: 358 },
-  // ASTRA Logo sizes (responsive, DPI-scaled)
   logoResponsive: "clamp(32px, 4.2vw, 40px)",
   logoModal: "28px",
 };
 
 // Audio Configuration
 export const AUDIO = {
-  clickFrequency: 800, // Hz
-  clickDuration: 100, // ms
-  hoverFrequency: 600, // Hz
-  hoverDuration: 50, // ms
+  clickFrequency: 800,
+  clickDuration: 100,
+  hoverFrequency: 600,
+  hoverDuration: 50,
   musicDefaultVolume: 0.3,
   musicStreamUrl: "https://streams.fluxfm.de/chillhop",
 };
 
 // Timing Configuration
 export const TIMING = {
-  animationDuration: 300, // ms
-  transitionDuration: 700, // ms
-  serverStatusInterval: 10000, // 10s — обновление статуса сервера
-  serverPingInterval: 10000, // 10s — обновление пинга
-  updateCheckInterval: 1800000, // 30 мин — проверка обновлений
-  notificationTimeout: 4000, // 4s — таймаут уведомлений
-  statusMessageTimeout: 3000, // 3s — таймаут статус-сообщений
-  installerPollInterval: 3000, // 3s — интервал проверки установщика
-  installerPollTimeout: 600000, // 10 мин — таймаут ожидания установщика
-  modalAnimationDuration: 150, // ms
-  launcherReadyDelay: 300, // ms — задержка перед показом UI
+  animationDuration: 300,
+  transitionDuration: 700,
+  serverStatusInterval: 10000,
+  serverPingInterval: 10000,
+  updateCheckInterval: 1800000,
+  notificationTimeout: 4000,
+  statusMessageTimeout: 3000,
+  modalAnimationDuration: 150,
+  launcherReadyDelay: 300,
 };
 
 // Keyboard Keys
